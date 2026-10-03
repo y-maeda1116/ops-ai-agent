@@ -2847,7 +2847,9 @@ def create_claude_llm(settings: Settings) -> ClaudeLlmAdapter:
     )
 ```
 
-注: `self._client.beta.messages.create` の型はスタブテストのため `Any` 扱いにしている。mypy strict で `anthropic.Anthropic` 本体の型と干渉する場合は `_client` を `Any` 型のプライベート属性にキャストして保持すること（実装時に `uv run mypy ops_ai_agent` を通る形へ調整可）。
+注1: `self._client.beta.messages.create` の型はスタブテストのため `Any` 扱いにしている。mypy strict で `anthropic.Anthropic` 本体の型と干渉する場合は `_client` を `Any` 型のプライベート属性にキャストして保持すること（実装時に `uv run mypy ops_ai_agent` を通る形へ調整可）。
+
+注2: spec 6節は「長出力に備えストリーミングで取得」と述べるが、本計画は**非ストリーミング**の `create` を採用する。理由: エージェントループの各ターンは tool_use または高々数KBのJSONレポートで、`max_tokens=16000` はSDKの長時間リクエストガード（ストリーミング推奨閾値）の対象外であり、SDKのデフォルトタイムアウト（10分）内で完了する。ストリーミングは speculative な複雑化のため導入しない（YAGNI）。将来レポートが長大化する場合は `LlmPort` 実装の差し替えのみで対応できる。
 
 - [ ] **Step 4: テストを実行してPASSを確認**
 
