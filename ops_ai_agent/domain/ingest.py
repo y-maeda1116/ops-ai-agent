@@ -3,7 +3,7 @@
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -60,9 +60,10 @@ def parse_log_text(text: str) -> IngestResult:
         if record is not None:
             records.append(record)
         else:
+            # aware統一: analysis の min/max 比較で naive/aware 混在TypeErrorを避ける
             records.append(
                 LogRecord(
-                    timestamp=datetime.now(tz=None),
+                    timestamp=datetime.now(tz=UTC),
                     level="unknown",
                     service="",
                     message="",
