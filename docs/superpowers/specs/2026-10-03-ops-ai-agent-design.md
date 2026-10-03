@@ -37,12 +37,12 @@
                         │  ・TriageReport(構造化結果)  │
                         └──────┬──────────────────────┘
                                │ Ports (Protocol)
-        ┌──────────┬───────────┼──────────┬───────────┐
-        ▼          ▼           ▼          ▼           ▼
-   LlmPort   EmbeddingPort  RetrieverPort  NotifierPort  (log ingestion)
-        │          │           │           │
-  ClaudeLlm   Voyage      JsonVector   Slack / Console
-  (anthropic) (REST)      Store(JSON)  (bolt / stdout)
+        ┌──────────┬───────────┼──────────┐
+        ▼          ▼           ▼          ▼
+   LlmPort   EmbeddingPort  RetrieverPort  NotifierPort
+        │          │           │              │
+  ClaudeLlm   Voyage      JsonVector     Slack / Console
+  (anthropic) (Voyage API) Store(JSON)    (bolt / stdout)
 ```
 
 依存の方向は domain ← adapters のみ（domainはports以外を知らない）。
@@ -56,7 +56,7 @@
 ops-ai-agent/
   pyproject.toml            # uv管理、dev依存: ruff, mypy, pytest, pytest-cov, pip-audit, bandit
   .env.example              # 必要なenv変数のドキュメント（.env自体はgitignore）
-  src/ops_ai_agent/
+  ops_ai_agent/
     cli.py                  # index / triage / ask / bot サブコマンド (typer)
     config.py               # env設定 (pydantic-settings)
     domain/
@@ -173,7 +173,7 @@ ops-agent bot                                  # Slack Socket Mode Bot 起動
 - メンションまたはDMでログテキスト（コードブロック）を受信 → 切り分け実行 →
   元メッセージのスレッドに返信
 - 返信はBlock Kit: 重要度でヘッダー色を分け、原因候補・対応手順・
-  参照インシデクト・信頼度を構造化表示
+  参照インシデント・信頼度を構造化表示
 - ファイル添付によるログ受信はPhase 2（将来拡張）
 - トークン: `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`（env）
 
