@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+.env.*
+.env.local
+.env.*.local
+.venv/
+venv/
+
+# AI development artifacts
+.claude/
+
+# 生成物
+data/
