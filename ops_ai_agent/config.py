@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     knowledge_dir: Path = Path("knowledge")
     data_dir: Path = Path("data")
     max_iterations: int = Field(default=12, validation_alias="OPS_AGENT_MAX_ITERATIONS")
+    slack_channel: str = Field(
+        default="#ops-alerts", validation_alias="OPS_AGENT_SLACK_CHANNEL"
+    )
 
     def require_anthropic_key(self) -> str:
         """ANTHROPIC_API_KEY を検証付きで返す。"""

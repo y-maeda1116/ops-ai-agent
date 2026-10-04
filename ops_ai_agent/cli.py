@@ -43,6 +43,10 @@ def _build_llm(settings: Settings) -> LlmPort:
 def _build_notifier(kind: str) -> NotifierPort:
     if kind == "console":
         return ConsoleNotifier()
+    if kind == "slack":
+        from ops_ai_agent.adapters.slack import create_slack_notifier
+
+        return create_slack_notifier(Settings())
     msg = f"未知の通知先: {kind}"
     raise typer.BadParameter(msg)
 
