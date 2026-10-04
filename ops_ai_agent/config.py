@@ -49,3 +49,13 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
         return self.voyage_api_key
+
+    def require_slack_app_token(self) -> str:
+        """SLACK_APP_TOKEN を検証付きで返す。"""
+        if self.slack_app_token is None:
+            msg = (
+                "SLACK_APP_TOKEN が設定されていません（xapp- で始まる"
+                "アプリトークン、connections:write 権限が必要です）。"
+            )
+            raise ValueError(msg)
+        return self.slack_app_token

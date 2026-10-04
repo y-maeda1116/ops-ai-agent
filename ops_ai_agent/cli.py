@@ -149,6 +149,14 @@ def ask(
     typer.echo("参照: " + ", ".join(sorted({hit.chunk.id for hit in hits})))
 
 
+@app.command()
+def bot() -> None:
+    """Slack Socket Mode Bot を起動する。"""
+    from ops_ai_agent.bot import run_bot
+
+    run_bot(Settings())
+
+
 def main() -> None:
     app()
 
