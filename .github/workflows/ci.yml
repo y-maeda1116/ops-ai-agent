@@ -32,4 +32,4 @@ jobs:
         run: uv run mypy ops_ai_agent
 
       - name: Run pytest
-        run: uv run pytest -m "not live"
+        run: uv run pytest -m "not live" --cov=ops_ai_agent --cov-fail-under=80
