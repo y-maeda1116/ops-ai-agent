@@ -1,0 +1,11 @@
+{"ts":"2026-10-03T14:00:00Z","level":"info","service":"app-service","message":"startup memory rss 220MiB limit 512MiB"}
+{"ts":"2026-10-03T14:10:00Z","level":"info","service":"app-service","message":"memory rss 310MiB"}
+{"ts":"2026-10-03T14:20:00Z","level":"warn","service":"app-service","message":"memory rss 405MiB"}
+{"ts":"2026-10-03T14:26:00Z","level":"error","service":"app-service","message":"OutOfMemoryError: cannot allocate buffer for request"}
+{"ts":"2026-10-03T14:26:01Z","level":"error","service":"app-service","message":"process killed signal 9 (OOMKilled)"}
+{"ts":"2026-10-03T14:26:30Z","level":"info","service":"app-service","message":"restart #1 memory rss 225MiB"}
+{"ts":"2026-10-03T14:36:00Z","level":"warn","service":"app-service","message":"memory rss 400MiB"}
+{"ts":"2026-10-03T14:41:00Z","level":"error","service":"app-service","message":"process killed signal 9 (OOMKilled)"}
+{"ts":"2026-10-03T14:41:30Z","level":"info","service":"app-service","message":"restart #2 memory rss 221MiB"}
+{"ts":"2026-10-03T14:51:00Z","level":"warn","service":"app-service","message":"memory rss 398MiB"}
+{"ts":"2026-10-03T14:56:00Z","level":"error","service":"app-service","message":"process killed signal 9 (OOMKilled)"}

@@ -1,0 +1,9 @@
+{"ts":"2026-10-03T09:40:00Z","level":"info","service":"api","message":"GET /api/items 200 30ms"}
+{"ts":"2026-10-03T10:55:00Z","level":"warn","service":"api","message":"db pool usage 85% (85/100)"}
+{"ts":"2026-10-03T11:02:11Z","level":"error","service":"api","message":"pool exhausted: timeout acquiring postgres connection"}
+{"ts":"2026-10-03T11:02:12Z","level":"error","service":"batch-worker","message":"FATAL: sorry, too many clients already"}
+{"ts":"2026-10-03T11:03:40Z","level":"error","service":"api","message":"pool exhausted: timeout acquiring postgres connection"}
+{"ts":"2026-10-03T11:04:02Z","level":"error","service":"batch-worker","message":"FATAL: sorry, too many clients already"}
+{"ts":"2026-10-03T11:05:30Z","level":"error","service":"postgres","message":"connection count 100/100 (max_connections)"}
+{"ts":"2026-10-03T11:06:00Z","level":"warn","service":"api","message":"GET /api/items 503 12"}
+{"ts":"2026-10-03T10:50:00Z","level":"info","service":"batch-worker","message":"batch job started (connections will be held per row)"}

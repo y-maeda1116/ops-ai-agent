@@ -1,0 +1,11 @@
+{"ts":"2026-10-03T12:00:00Z","level":"info","service":"api-gateway","message":"GET /api/users 200 45ms"}
+{"ts":"2026-10-03T12:04:30Z","level":"warn","service":"api-gateway","message":"upstream slow response 3200ms (app-service)"}
+{"ts":"2026-10-03T12:05:02Z","level":"error","service":"api-gateway","message":"upstream timeout after 5000ms (app-service /api/orders)"}
+{"ts":"2026-10-03T12:05:03Z","level":"error","service":"api-gateway","message":"GET /api/orders 504"}
+{"ts":"2026-10-03T12:05:40Z","level":"error","service":"api-gateway","message":"upstream timeout after 5000ms (app-service /api/orders)"}
+{"ts":"2026-10-03T12:06:10Z","level":"error","service":"api-gateway","message":"GET /api/orders 504"}
+{"ts":"2026-10-03T12:06:44Z","level":"error","service":"api-gateway","message":"upstream timeout after 5000ms (app-service /api/cart)"}
+{"ts":"2026-10-03T12:07:01Z","level":"error","service":"api-gateway","message":"GET /api/cart 504"}
+{"ts":"2026-10-03T12:08:15Z","level":"error","service":"api-gateway","message":"circuit breaker open for app-service"}
+{"ts":"2026-10-03T12:09:00Z","level":"error","service":"api-gateway","message":"5xx rate 61% (window=5m)"}
+{"ts":"2026-10-03T12:03:00Z","level":"info","service":"app-service","message":"deploy revision 88f2c1a completed"}
