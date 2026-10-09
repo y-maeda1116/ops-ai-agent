@@ -55,8 +55,24 @@ def test_notifier_posts_blocks():
     notifier.send_report(_report(), context="api-gateway-5xx.jsonl")
     assert len(posted) == 1
     assert posted[0]["channel"] == "#ops-alerts"
-    assert posted[0]["blocks"]
-    assert "api-gateway-5xx.jsonl" in str(posted[0]["blocks"])
+    assert posted[0]["attachments"][0]["blocks"]
+    assert "api-gateway-5xx.jsonl" in str(posted[0]["attachments"][0]["blocks"])
+
+
+def test_notifier_colors_by_severity():
+    """重要度に応じたattachments色を付与する（spec §7、回帰）。"""
+    posted: list[dict] = []
+
+    class StubWebClient:
+        def chat_postMessage(self, **kwargs) -> dict:  # noqa: N802
+            posted.append(kwargs)
+            return {"ok": True, "ts": "1234.5678"}
+
+    notifier = SlackNotifier(StubWebClient(), "#ops-alerts")  # type: ignore[arg-type]
+    notifier.send_report(_report(severity="critical"))
+    notifier.send_report(_report(severity="low"))
+    assert posted[0]["attachments"][0]["color"] == SEVERITY_COLOR["critical"]
+    assert posted[1]["attachments"][0]["color"] == SEVERITY_COLOR["low"]
 
 
 def test_create_slack_notifier_requires_token(tmp_path, monkeypatch):

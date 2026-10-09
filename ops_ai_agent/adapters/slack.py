@@ -100,9 +100,10 @@ class SlackNotifier:
                     "elements": [{"type": "mrkdwn", "text": f"対象: {context}"}],
                 },
             )
+        color = SEVERITY_COLOR[report.severity]
         self._client.chat_postMessage(
             channel=self._channel,
-            blocks=blocks,
+            attachments=[{"color": color, "blocks": blocks}],
             text=f"障害一次切り分けレポート（{report.severity}）: {report.summary}",
         )
 
