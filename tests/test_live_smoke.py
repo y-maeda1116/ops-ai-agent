@@ -26,3 +26,38 @@ def test_live_voyage_embedding():
     vector = embedder.embed_query("api-gateway 5xx急増")
     assert len(vector) > 0
     assert all(isinstance(x, float) for x in vector)
+
+
+def test_live_triage_tool_use_and_structured_output():
+    """ツール利用→構造化出力（tools無しでの履歴再送を含む）の実API検証。
+
+    max_iterations/max_tokens 回復時は tools パラメータ無しで tool_use/
+    tool_result を含む会話履歴を再送する。この形状が実APIで受理されることを
+    FakeLlm では検証できないため、ここで確認する。
+    """
+    from ops_ai_agent.domain.ingest import parse_log_text
+    from ops_ai_agent.domain.triage import TriageService
+
+    class NoopRetriever:
+        def search(self, query: str, *, top_k: int = 3):
+            return []
+
+        def get_runbook(self, service: str) -> str | None:
+            return None
+
+    settings = Settings()
+    service = TriageService(
+        create_claude_llm(settings),
+        NoopRetriever(),
+        max_iterations=settings.max_iterations,
+    )
+    records = parse_log_text(
+        "\n".join(
+            f"2026-10-03T12:{minute:02d}:00Z ERROR api-gateway "
+            f"upstream timeout after {5000 + minute}ms"
+            for minute in range(5)
+        )
+    ).records
+    report = service.triage(records, alert_text="ALERT: api-gateway 5xx急増")
+    assert report.severity in {"critical", "high", "medium", "low"}
+    assert report.recommended_actions
