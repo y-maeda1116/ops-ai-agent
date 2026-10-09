@@ -35,7 +35,7 @@ class Settings(BaseSettings):
         if self.anthropic_api_key is None:
             msg = (
                 "ANTHROPIC_API_KEY が設定されていません。"
-                ".env.example を参考に環境変数を設定してください。"
+                "README の環境変数一覧を参考に .env または環境変数を設定してください。"
             )
             raise ValueError(msg)
         return self.anthropic_api_key
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
         if self.voyage_api_key is None:
             msg = (
                 "VOYAGE_API_KEY が設定されていません。"
-                ".env.example を参考に環境変数を設定してください。"
+                "README の環境変数一覧を参考に .env または環境変数を設定してください。"
             )
             raise ValueError(msg)
         return self.voyage_api_key

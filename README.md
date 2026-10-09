@@ -11,20 +11,35 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
 - **エージェント切り分け**: Claude（tool-use）が analyze_log / search_knowledge /
   get_runbook を自律的に使い、根拠付きの TriageReport を生成
 - **RAG**: 過去インシデント・runbook（Markdown）を Voyage AI 埋め込みで検索
-- **通知**: CLI（Markdown）/ Slack（Block Kit、重要度でヘッダー色を分岐）
+- **通知**: CLI（Markdown）/ Slack（Block Kit、重要度でカラーを分岐）
 - **Slack Bot**: メンション/DMでログを受信しスレッドに切り分け結果を返信
 
 ## クイックスタート
 
 ```bash
 uv sync --group dev
-cp .env.example .env  # APIキーを設定
+cp .env.example .env  # 無い場合は下表を .env に記載
 uv run ops-agent index                          # ナレッジのインデックス構築
 uv run ops-agent triage --log examples/logs/api-gateway-5xx.jsonl
 uv run ops-agent triage --alert "ALERT: 5xx急増" --notify slack
 uv run ops-agent ask "5xx急増の過去事例は？"
 uv run ops-agent bot                            # Slack Socket Mode Bot
 ```
+
+### 環境変数
+
+`.env`（gitignore済み）または環境変数で設定します。
+
+| 変数 | 必須 | 説明 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | ○ | Claude API キー（triage/ask/bot で必須） |
+| `VOYAGE_API_KEY` | ○ | Voyage AI キー（index/triage/ask で必須） |
+| `SLACK_BOT_TOKEN` | ※1 | Bot トークン（`xoxb-`、--notify slack / bot で必須） |
+| `SLACK_APP_TOKEN` | ※1 | Socket Mode トークン（`xapp-`、bot で必須） |
+| `OPS_AGENT_SLACK_CHANNEL` | - | 通知先チャンネル（既定: `#ops-alerts`） |
+| `OPS_AGENT_MAX_ITERATIONS` | - | エージェント反復上限（既定: 12） |
+
+※1: Slack機能を使う場合のみ。
 
 ## アーキテクチャ
 
@@ -56,7 +71,7 @@ FakeLlm / FakeEmbedder により、実APIなしでエージェントループ全
 
 ## セキュリティ
 
-- APIトークンは環境変数のみ（`.env` はgitignore、`.env.example` 参照）
+- APIトークンは環境変数のみ（`.env` はgitignore。上表の変数を `.env` に記載）
 - ログ/アラート/ナレッジ本文はランダムデリミタでラップし、プロンプト
   インジェクション対策（内容の指示には従わない）
 - Socket Mode（公開エンドポイントなし）、メンション/DMのみ応答

@@ -111,7 +111,10 @@ class SlackNotifier:
 def create_slack_notifier(settings: Settings) -> SlackNotifier:
     """設定から SlackNotifier を構築する（トークン未設定時は ValueError）。"""
     if settings.slack_bot_token is None:
-        msg = "SLACK_BOT_TOKEN が設定されていません。.env.example を参照してください。"
+        msg = (
+            "SLACK_BOT_TOKEN が設定されていません。"
+            "README の環境変数一覧を参照してください。"
+        )
         raise ValueError(msg)
     client: Any = WebClient(token=settings.slack_bot_token)
     return SlackNotifier(client, settings.slack_channel)
