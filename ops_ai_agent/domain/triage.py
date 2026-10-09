@@ -169,13 +169,15 @@ class TriageService:
         self._llm = llm
         self._retriever = retriever
         self._max_iterations = max_iterations
-        self._records: list[LogRecord] = []
 
     def triage(
         self, records: list[LogRecord], *, alert_text: str | None = None
     ) -> TriageReport:
-        """ログ（と任意のアラート文）を切り分けてレポートを返す。"""
-        self._records = records
+        """ログ（と任意のアラート文）を切り分けてレポートを返す。
+
+        records は呼び出しごとに引数で受け渡し、インスタンス状態に保持しない
+        （単一インスタンスをSlack Bot等で共有しても並行呼び出しが混線しない）。
+        """
         messages: list[Message] = [
             Message(
                 role="user",
@@ -200,14 +202,18 @@ class TriageService:
                 messages = [
                     *messages,
                     Message(role="assistant", content=list(response.content)),
-                    Message(role="user", content=list(self._run_tools(tool_uses))),
+                    Message(
+                        role="user", content=list(self._run_tools(tool_uses, records))
+                    ),
                 ]
                 continue
             if tool_uses and iterations >= self._max_iterations:
                 messages = [
                     *messages,
                     Message(role="assistant", content=list(response.content)),
-                    Message(role="user", content=list(self._run_tools(tool_uses))),
+                    Message(
+                        role="user", content=list(self._run_tools(tool_uses, records))
+                    ),
                     Message(
                         role="user",
                         content=[
@@ -282,13 +288,16 @@ class TriageService:
             )
             return TriageReport.model_validate_json(retry_text)  # 失敗時は例外伝播
 
-    def _run_tools(self, tool_uses: list[ToolUseBlock]) -> list[ToolResultBlock]:
+    def _run_tools(
+        self, tool_uses: list[ToolUseBlock], records: list[LogRecord]
+    ) -> list[ToolResultBlock]:
         results: list[ToolResultBlock] = []
         for use in tool_uses:
             try:
                 results.append(
                     ToolResultBlock(
-                        tool_use_id=use.id, content=self._execute(use.name, use.input)
+                        tool_use_id=use.id,
+                        content=self._execute(use.name, use.input, records),
                     )
                 )
             except Exception as exc:  # ツール例外は代替手段検討させる
@@ -301,9 +310,11 @@ class TriageService:
                 )
         return results
 
-    def _execute(self, name: str, tool_input: dict[str, object]) -> str:
+    def _execute(
+        self, name: str, tool_input: dict[str, object], records: list[LogRecord]
+    ) -> str:
         if name == "analyze_log":
-            return self._analyze_log(tool_input)
+            return self._analyze_log(tool_input, records)
         if name == "search_knowledge":
             return self._search_knowledge(tool_input)
         if name == "get_runbook":
@@ -311,8 +322,9 @@ class TriageService:
         msg = f"未知のツール: {name}"
         raise ValueError(msg)
 
-    def _analyze_log(self, tool_input: dict[str, object]) -> str:
-        records = self._records
+    def _analyze_log(
+        self, tool_input: dict[str, object], records: list[LogRecord]
+    ) -> str:
         has_filter = any(
             key in tool_input for key in ("level", "service", "start", "end")
         )

@@ -10,6 +10,7 @@ from ops_ai_agent.domain.models import LogRecord, TriageReport
 from ops_ai_agent.domain.triage import TriageRefusalError, TriageService
 from ops_ai_agent.ports.llm import (
     LlmResponse,
+    Message,
     TextBlock,
     ToolResultBlock,
     ToolUseBlock,
@@ -277,3 +278,86 @@ def test_triage_invalid_json_twice_raises():
     service = _service([bad, bad])
     with pytest.raises(ValidationError):
         service.triage(_records())
+
+
+def test_triage_with_shared_service_is_safe_for_concurrent_calls():
+    """2スレッドが同一 service を共有しても互いのログを解析しない（回帰）。"""
+    import threading
+
+    barrier = threading.Barrier(3)
+    lock = threading.Lock()
+    counts: dict[int, int] = {}
+    captured: dict[int, list[str]] = {}
+
+    class ConcurrentFakeLlm:
+        """初回は analyze_log を要求し、2回目でレポートを返すスレッド別スクリプト。"""
+
+        def complete(
+            self,
+            *,
+            system: str,
+            messages: list[Message],
+            tools: list | None = None,
+            output_schema: dict | None = None,
+        ) -> LlmResponse:
+            tid = threading.get_ident()
+            with lock:
+                counts[tid] = counts.get(tid, 0) + 1
+                first_call = counts[tid] == 1
+            if first_call:
+                barrier.wait(timeout=5)
+            with lock:
+                for m in messages:
+                    for b in m.content:
+                        if isinstance(b, ToolResultBlock):
+                            captured.setdefault(tid, []).append(b.content)
+            if first_call:
+                return LlmResponse(
+                    stop_reason="tool_use",
+                    content=[
+                        ToolUseBlock(
+                            id=f"analyze-{tid}",
+                            name="analyze_log",
+                            input={"focus": "summary"},
+                        )
+                    ],
+                )
+            return LlmResponse(
+                stop_reason="end_turn",
+                content=[
+                    TextBlock(text=json.dumps(_VALID_REPORT, ensure_ascii=False))
+                ],
+            )
+
+    def make_records(service: str, count: int) -> list[LogRecord]:
+        return [
+            LogRecord(
+                timestamp=datetime(2026, 10, 3, 12, minute, tzinfo=UTC),
+                level="error",
+                service=service,
+                message=f"{service} failure {minute}",
+                raw=f"raw {service} {minute}",
+            )
+            for minute in range(count)
+        ]
+
+    service = TriageService(ConcurrentFakeLlm(), StubRetriever())
+    reports: list[TriageReport] = []
+
+    def run(records: list[LogRecord]) -> None:
+        reports.append(service.triage(records))
+
+    threads = [
+        threading.Thread(target=run, args=(make_records("service-alpha", 2),)),
+        threading.Thread(target=run, args=(make_records("service-beta", 5),)),
+    ]
+    for thread in threads:
+        thread.start()
+    barrier.wait(timeout=5)
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert len(reports) == 2
+    # 各スレッドの analyze_log 結果は自分のログの統計を反映する
+    assert "service-alpha" in captured[threads[0].ident][0]
+    assert "service-beta" in captured[threads[1].ident][0]
