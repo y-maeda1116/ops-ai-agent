@@ -223,6 +223,28 @@ def test_triage_continues_when_index_empty():
     assert "ヒットなし" in tool_result.content
 
 
+def test_search_knowledge_results_are_wrapped_as_untrusted():
+    """ナレッジ本文も system prompt の約束どおりデリミタでラップされる（回帰）。"""
+    service = _service(
+        [
+            _tool_use("search_knowledge", {"query": "5xx 急増"}),
+            _end_turn(),
+        ]
+    )
+    service.triage(_records())
+    tool_result = [
+        b
+        for m in service._llm.requests[1]["messages"]
+        if m.role == "user"
+        for b in m.content
+        if isinstance(b, ToolResultBlock)
+    ][0]
+    assert tool_result.content.startswith("<untrusted-knowledge-")
+    lines = tool_result.content.splitlines()
+    assert lines[-1] == "</" + lines[0][1:]
+    assert "症状: 5xx急増" in tool_result.content
+
+
 def test_triage_invalid_json_retries_once():
     bad = LlmResponse(
         stop_reason="end_turn", content=[TextBlock(text="これはJSONではない")]
