@@ -7,7 +7,7 @@ from typing import Literal
 import typer
 
 from ops_ai_agent.adapters.claude_llm import create_claude_llm
-from ops_ai_agent.adapters.console import ConsoleNotifier
+from ops_ai_agent.adapters.console import ConsoleNotifier, report_to_markdown
 from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
 from ops_ai_agent.adapters.knowledge_base import KnowledgeBase
 from ops_ai_agent.adapters.voyage_embeddings import create_voyage_embedder
@@ -98,10 +98,14 @@ def triage(
             max_iterations=settings.max_iterations,
         )
         report = service.triage(records, alert_text=alert)
+        notifier = _build_notifier(notify)
     except (ValueError, TriageRefusalError) as exc:
         typer.echo(f"エラー: {exc}", err=True)
         raise typer.Exit(1) from exc
-    _build_notifier(notify).send_report(report, context=context)
+    if notify == "slack":
+        # 通知先が失敗してもレポート自体は失わないようstdoutにも出力する
+        typer.echo(report_to_markdown(report, context=context))
+    notifier.send_report(report, context=context)
 
 
 _ASK_SYSTEM = (

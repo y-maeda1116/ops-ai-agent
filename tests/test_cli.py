@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 
 import ops_ai_agent.cli as cli_module
 from ops_ai_agent.cli import app
-from ops_ai_agent.domain.models import KnowledgeChunk, SearchHit
+from ops_ai_agent.domain.models import KnowledgeChunk, SearchHit, TriageReport
 from ops_ai_agent.ports.llm import LlmResponse, Message, TextBlock, ToolSpec
 
 runner = CliRunner()
@@ -122,6 +122,40 @@ def test_triage_missing_api_key_exits_with_message(tmp_path, monkeypatch):
     result = runner.invoke(app, ["triage", "--alert", "ALERT: x"])
     assert result.exit_code == 1
     assert "ANTHROPIC_API_KEY" in result.output
+
+
+def test_triage_slack_notify_also_echoes_report_to_stdout(tmp_path, monkeypatch):
+    """slack通知時もレポート本文をstdoutへ出力し喪失しない（spec §8、回帰）。"""
+    _patch_factories(monkeypatch, tmp_path)
+    sent: list[TriageReport] = []
+
+    class SpyNotifier:
+        def send_report(self, report: TriageReport, *, context: str = "") -> None:
+            sent.append(report)
+
+    monkeypatch.setattr(cli_module, "_build_notifier", lambda kind: SpyNotifier())
+    result = runner.invoke(
+        app, ["triage", "--alert", "ALERT: 5xx急増", "--notify", "slack"]
+    )
+    assert result.exit_code == 0
+    assert "アップストリームタイムアウト" in result.stdout
+    assert sent[0].severity == "high"
+
+
+def test_triage_slack_missing_token_reports_clean_error(tmp_path, monkeypatch):
+    """SLACK_BOT_TOKEN未設定も生tracebackでなく構造化エラーになる（回帰）。"""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("SLACK_BOT_TOKEN", raising=False)
+    monkeypatch.setattr(cli_module, "_build_llm", lambda settings: FakeFinalLlm())
+    monkeypatch.setattr(
+        cli_module, "_build_retriever", lambda settings: StubRetriever()
+    )
+    result = runner.invoke(
+        app, ["triage", "--alert", "ALERT: x", "--notify", "slack"]
+    )
+    assert result.exit_code == 1
+    assert "エラー:" in result.output
+    assert "SLACK_BOT_TOKEN" in result.output
 
 
 class FakeAnswerLlm:
