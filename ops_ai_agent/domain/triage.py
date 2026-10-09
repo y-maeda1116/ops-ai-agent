@@ -370,7 +370,8 @@ class TriageService:
             )
             for hit in hits
         ]
-        # ナレッジ本文も外部由来テキスト（貼り付けインシデント等）を含み得るためラップする
+        # ナレッジ本文も外部由来テキスト（貼り付けインシデント等）を
+        # 含み得るためラップする
         return _wrap("untrusted-knowledge", "\n".join(lines))
 
     def _get_runbook(self, tool_input: dict[str, object]) -> str:
