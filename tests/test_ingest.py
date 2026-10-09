@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from ops_ai_agent.domain.analysis import summarize
 from ops_ai_agent.domain.ingest import parse_log_text, read_log_source
 
 
@@ -77,6 +78,30 @@ def test_mixed_content():
     result = parse_log_text(text)
     assert len(result.records) == 3
     assert [r.level for r in result.records] == ["error", "info", "unknown"]
+
+
+def test_naive_and_aware_timestamp_mix_does_not_crash():
+    """naive時刻とunknown行（aware now）の混在でクラッシュしない（回帰）。"""
+    text = (
+        "2026-10-03 12:00:00,123 WARN worker - retrying job\n"
+        "unexpected garbage line without timestamp\n"
+    )
+    result = parse_log_text(text)
+    assert result.records[0].timestamp.tzinfo is not None
+    summary = summarize(result.records)
+    assert summary.total == 2
+    assert summary.unparsed == 1
+
+
+def test_jsonl_mixing_naive_and_aware_ts_does_not_crash():
+    text = (
+        '{"ts":"2026-10-03T12:00:00","level":"error","service":"api","message":"x"}\n'
+        '{"ts":"2026-10-03T12:01:00Z","level":"error","service":"api","message":"y"}\n'
+    )
+    result = parse_log_text(text)
+    summary = summarize(result.records)
+    assert summary.total == 2
+    assert summary.first_timestamp is not None
 
 
 def test_read_log_source_file(tmp_path):

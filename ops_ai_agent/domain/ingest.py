@@ -34,7 +34,11 @@ class IngestResult(BaseModel):
 
 def _parse_timestamp(value: str) -> datetime:
     normalized = value.replace("Z", "+00:00").replace(",", ".")
-    return datetime.fromisoformat(normalized)
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        # naive時刻はUTCと解釈し、unknown行のaware now との混在TypeErrorを防ぐ
+        return parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 def _first_key(obj: dict[str, object], keys: tuple[str, ...]) -> object:
