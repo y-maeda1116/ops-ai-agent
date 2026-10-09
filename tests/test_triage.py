@@ -324,9 +324,7 @@ def test_triage_with_shared_service_is_safe_for_concurrent_calls():
                 )
             return LlmResponse(
                 stop_reason="end_turn",
-                content=[
-                    TextBlock(text=json.dumps(_VALID_REPORT, ensure_ascii=False))
-                ],
+                content=[TextBlock(text=json.dumps(_VALID_REPORT, ensure_ascii=False))],
             )
 
     def make_records(service: str, count: int) -> list[LogRecord]:

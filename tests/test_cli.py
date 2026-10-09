@@ -150,9 +150,7 @@ def test_triage_slack_missing_token_reports_clean_error(tmp_path, monkeypatch):
     monkeypatch.setattr(
         cli_module, "_build_retriever", lambda settings: StubRetriever()
     )
-    result = runner.invoke(
-        app, ["triage", "--alert", "ALERT: x", "--notify", "slack"]
-    )
+    result = runner.invoke(app, ["triage", "--alert", "ALERT: x", "--notify", "slack"])
     assert result.exit_code == 1
     assert "エラー:" in result.output
     assert "SLACK_BOT_TOKEN" in result.output
