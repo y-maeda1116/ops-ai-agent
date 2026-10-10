@@ -1,6 +1,7 @@
 """Slack Bot ハンドラのテスト（fake say 使用、実Slack不使用）。"""
 
 import json
+import logging
 
 from ops_ai_agent.bot import create_app, extract_log_text, handle_triage_request
 from ops_ai_agent.config import Settings
@@ -136,6 +137,28 @@ def test_handle_triage_request_error_replies_fixed_message(monkeypatch):
     assert len(calls) == 1
     assert "失敗" in str(calls[0])
     # 例外が再送出されていない（Botプロセス継続）
+
+
+def test_handle_triage_request_error_is_logged_with_traceback(caplog):
+    """triage失敗は汎用返信としつつ、原因をスタックトレースごとログに残す。"""
+
+    class BrokenService:
+        def triage(self, records, *, alert_text=None):
+            raise RuntimeError("llm down")
+
+    calls, say = _make_say()
+    with caplog.at_level(logging.ERROR, logger="ops_ai_agent.bot"):
+        handle_triage_request(
+            _event("<@U1> ```\n2026-10-03T12:00:00Z ERROR [api] timeout\n```"),
+            say,
+            service=BrokenService(),
+            settings=Settings(_env_file=None),
+        )
+    error_records = [r for r in caplog.records if r.name == "ops_ai_agent.bot"]
+    assert error_records
+    assert error_records[0].levelno == logging.ERROR
+    assert error_records[0].exc_info is not None
+    assert error_records[0].exc_info[0] is RuntimeError
 
 
 def test_create_app_registers_handlers():
