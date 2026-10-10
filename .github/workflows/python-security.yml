@@ -1,0 +1,14 @@
+name: Python Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  python-security:
+    name: Python Security Check
+    uses: y-maeda1116/security-base/.github/workflows/reusable-py-security.yml@main
+    with:
+      python-version: "3.13"
+      bandit-target: "ops_ai_agent"
