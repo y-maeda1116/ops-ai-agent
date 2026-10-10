@@ -1,5 +1,6 @@
 """Slack Bot（Socket Mode）。メンション/DMで切り分けを実行しスレッドに返信する。"""
 
+import logging
 import re
 from collections.abc import Callable
 from typing import Any
@@ -12,6 +13,8 @@ from ops_ai_agent.cli import _build_llm, _build_retriever
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.ingest import parse_log_text
 from ops_ai_agent.domain.triage import TriageService
+
+logger = logging.getLogger(__name__)
 
 _MENTION_RE = re.compile(r"<@[A-Z0-9]+>")
 _FENCE_RE = re.compile(r"```[a-zA-Z]*\n(.*?)```", re.DOTALL)
@@ -53,6 +56,8 @@ def handle_triage_request(
     try:
         report = service.triage(result.records, alert_text=str(event.get("text", "")))
     except Exception:
+        # ユーザーには汎用返信とし、原因はスタックトレースごとログへ残す
+        logger.exception("triage failed")
         say(text=_ERROR_REPLY, thread_ts=thread_ts)
         return
     say(
