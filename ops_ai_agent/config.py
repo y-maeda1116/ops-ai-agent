@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     max_iterations: int = Field(default=12, validation_alias="OPS_AGENT_MAX_ITERATIONS")
     max_retries: int = Field(default=2, validation_alias="OPS_AGENT_MAX_RETRIES")
+    webhook_secret: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_WEBHOOK_SECRET"
+    )
+    webhook_port: int = Field(default=8080, validation_alias="OPS_AGENT_WEBHOOK_PORT")
+    webhook_rate_limit: int = Field(
+        default=30, validation_alias="OPS_AGENT_WEBHOOK_RATE_LIMIT"
+    )
     slack_channel: str = Field(
         default="#ops-alerts", validation_alias="OPS_AGENT_SLACK_CHANNEL"
     )

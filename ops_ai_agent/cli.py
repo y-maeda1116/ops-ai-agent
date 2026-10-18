@@ -1,6 +1,7 @@
 """ops-agent コマンドラインインターフェース。"""
 
 import secrets
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -13,7 +14,9 @@ from ops_ai_agent.adapters.knowledge_base import KnowledgeBase
 from ops_ai_agent.adapters.voyage_embeddings import create_voyage_embedder
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.ingest import parse_log_text, read_log_source
+from ops_ai_agent.domain.models import TriageReport
 from ops_ai_agent.domain.triage import TriageRefusalError, TriageService
+from ops_ai_agent.domain.webhook import NormalizedAlert, to_alert_text
 from ops_ai_agent.ports.llm import LlmPort, Message, TextBlock
 from ops_ai_agent.ports.notifier import NotifierPort
 from ops_ai_agent.ports.retriever import KnowledgeRetrieverPort
@@ -159,6 +162,46 @@ def bot() -> None:
     from ops_ai_agent.bot import run_bot
 
     run_bot(Settings())
+
+
+def build_webhook_on_alert(
+    settings: Settings, *, notify: str = "console"
+) -> Callable[[NormalizedAlert], TriageReport]:
+    """Webhook アラートを triage して通知するコールバックを構築する。"""
+
+    def on_alert(alert: NormalizedAlert) -> TriageReport:
+        service = TriageService(
+            _build_llm(settings),
+            _build_retriever(settings),
+            max_iterations=settings.max_iterations,
+        )
+        report = service.triage([], alert_text=to_alert_text(alert))
+        _build_notifier(notify).send_report(report, context=f"webhook:{alert.source}")
+        return report
+
+    return on_alert
+
+
+@app.command()
+def webhook(
+    notify: Literal["console", "slack"] = typer.Option(
+        "console", "--notify", help="通知先"
+    ),
+) -> None:
+    """アラートWebhookを受け取り自動triageするHTTPサーバを起動する。"""
+    from ops_ai_agent.adapters.webhook_server import run_webhook_server
+
+    settings = Settings()
+    on_alert = build_webhook_on_alert(settings, notify=notify)
+    typer.echo(
+        f"Webhookサーバを起動しました: http://127.0.0.1:{settings.webhook_port}/webhook"
+    )
+    run_webhook_server(
+        on_alert,
+        secret=settings.webhook_secret,
+        max_per_minute=settings.webhook_rate_limit,
+        port=settings.webhook_port,
+    )
 
 
 def main() -> None:

@@ -13,6 +13,8 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
 - **RAG**: 過去インシデント・runbook（Markdown）を Voyage AI 埋め込みで検索
 - **通知**: CLI（Markdown）/ Slack（Block Kit、重要度でカラーを分岐）
 - **Slack Bot**: メンション/DMでログを受信しスレッドに切り分け結果を返信
+- **Webhook**: Alertmanager / PagerDuty / Grafana のアラートを HTTP 受信し自動切り分け
+  （HMAC-SHA256 署名検証・レート制限付き）
 
 ## クイックスタート
 
@@ -24,6 +26,7 @@ uv run ops-agent triage --log examples/logs/api-gateway-5xx.jsonl
 uv run ops-agent triage --alert "ALERT: 5xx急増" --notify slack
 uv run ops-agent ask "5xx急増の過去事例は？"
 uv run ops-agent bot                            # Slack Socket Mode Bot
+uv run ops-agent webhook                        # アラートWebhook受付サーバ
 ```
 
 ### 環境変数
@@ -39,8 +42,12 @@ uv run ops-agent bot                            # Slack Socket Mode Bot
 | `OPS_AGENT_SLACK_CHANNEL` | - | 通知先チャンネル（既定: `#ops-alerts`） |
 | `OPS_AGENT_MAX_ITERATIONS` | - | エージェント反復上限（既定: 12） |
 | `OPS_AGENT_MAX_RETRIES` | - | API 一時的エラー（429/5xx/タイムアウト）のリトライ上限（既定: 2） |
+| `OPS_AGENT_WEBHOOK_SECRET` | ※2 | Webhook 署名検証用シークレット（`X-Signature: sha256=<HMAC>`） |
+| `OPS_AGENT_WEBHOOK_PORT` | - | Webhook サーバのポート（既定: 8080） |
+| `OPS_AGENT_WEBHOOK_RATE_LIMIT` | - | Webhook の毎分リクエスト上限（既定: 30） |
 
 ※1: Slack機能を使う場合のみ。
+※2: 未設定の場合は署名検証なしで動作（本番では設定を推奨）。
 
 ## アーキテクチャ
 

@@ -218,3 +218,39 @@ def test_ask_no_hits_reports_not_found(tmp_path, monkeypatch):
     result = runner.invoke(app, ["ask", "無関係な質問"])
     assert result.exit_code == 0
     assert "一致する文書" in result.stdout
+
+
+def test_help_lists_webhook_command():
+    result = runner.invoke(app, ["webhook", "--help"])
+    assert result.exit_code == 0
+    assert "Webhook" in result.stdout
+
+
+def test_build_webhook_on_alert_triages_and_notifies(tmp_path, monkeypatch):
+    from ops_ai_agent.config import Settings
+    from ops_ai_agent.domain.webhook import NormalizedAlert
+
+    _patch_factories(monkeypatch, tmp_path)
+    sent: list[TriageReport] = []
+
+    class SpyNotifier:
+        def send_report(self, report: TriageReport, *, context: str = "") -> None:
+            sent.append(report)
+
+    monkeypatch.setattr(cli_module, "_build_notifier", lambda kind: SpyNotifier())
+    settings = Settings(
+        _env_file=None,
+        anthropic_api_key="sk-test",  # type: ignore[call-arg]
+        voyage_api_key="pa-test",
+    )
+    on_alert = cli_module.build_webhook_on_alert(settings, notify="console")
+    alert = NormalizedAlert(
+        source="alertmanager",
+        title="HighErrorRate",
+        description="5xx急増",
+        severity="critical",
+        status="firing",
+    )
+    report = on_alert(alert)
+    assert report.summary == "アップストリームタイムアウトの疑い。"
+    assert len(sent) == 1
