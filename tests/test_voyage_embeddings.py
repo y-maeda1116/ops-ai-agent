@@ -112,6 +112,34 @@ def test_401_raises_auth_error():
         embedder.embed_query("q")
 
 
+def test_max_retries_zero_disables_retry():
+    calls: list[int] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(503, json={"error": "unavailable"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    embedder = VoyageEmbedder(client, "pa-test", max_retries=0, sleeper=lambda _s: None)
+    with pytest.raises(httpx.HTTPStatusError):
+        embedder.embed_query("q")
+    assert len(calls) == 1
+
+
+def test_custom_max_retries_honored():
+    calls: list[int] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(503, json={"error": "unavailable"})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    embedder = VoyageEmbedder(client, "pa-test", max_retries=3, sleeper=lambda _s: None)
+    with pytest.raises(httpx.HTTPStatusError):
+        embedder.embed_query("q")
+    assert len(calls) == 4  # 初回 + リトライ3回
+
+
 def test_create_voyage_embedder_requires_key(tmp_path, monkeypatch):
     from ops_ai_agent.config import Settings
 

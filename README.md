@@ -38,6 +38,7 @@ uv run ops-agent bot                            # Slack Socket Mode Bot
 | `SLACK_APP_TOKEN` | ※1 | Socket Mode トークン（`xapp-`、bot で必須） |
 | `OPS_AGENT_SLACK_CHANNEL` | - | 通知先チャンネル（既定: `#ops-alerts`） |
 | `OPS_AGENT_MAX_ITERATIONS` | - | エージェント反復上限（既定: 12） |
+| `OPS_AGENT_MAX_RETRIES` | - | API 一時的エラー（429/5xx/タイムアウト）のリトライ上限（既定: 2） |
 
 ※1: Slack機能を使う場合のみ。
 

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     knowledge_dir: Path = Path("knowledge")
     data_dir: Path = Path("data")
     max_iterations: int = Field(default=12, validation_alias="OPS_AGENT_MAX_ITERATIONS")
+    max_retries: int = Field(default=2, validation_alias="OPS_AGENT_MAX_RETRIES")
     slack_channel: str = Field(
         default="#ops-alerts", validation_alias="OPS_AGENT_SLACK_CHANNEL"
     )
