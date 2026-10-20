@@ -359,3 +359,14 @@ def test_triage_with_shared_service_is_safe_for_concurrent_calls():
     # 各スレッドの analyze_log 結果は自分のログの統計を反映する
     assert "service-alpha" in captured[threads[0].ident][0]
     assert "service-beta" in captured[threads[1].ident][0]
+
+
+def test_triage_masks_alert_text_sent_to_llm():
+    fake_llm = FakeLlm([_end_turn()])
+    service = TriageService(fake_llm, StubRetriever())
+    alert = "ALERT: token leaked: xoxb-fixture-not-a-real-token"
+    service.triage(_records(), alert_text=alert)
+    first_user = fake_llm.requests[0]["messages"][0]
+    text = next(b.text for b in first_user.content if isinstance(b, TextBlock))
+    assert "xoxb-fixture-not-a-real-token" not in text
+    assert "***MASKED***" in text

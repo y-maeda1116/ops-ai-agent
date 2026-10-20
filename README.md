@@ -82,5 +82,7 @@ FakeLlm / FakeEmbedder により、実APIなしでエージェントループ全
 - APIトークンは環境変数のみ（`.env` はgitignore。上表の変数を `.env` に記載）
 - ログ/アラート/ナレッジ本文はランダムデリミタでラップし、プロンプト
   インジェクション対策（内容の指示には従わない）
+- 取り込み段とアラート本文に対し、AWSキー/JWT/Slackトークン/秘密鍵/
+  メールアドレス等の機密情報を `***MASKED***` へマスキング（LLM送信前に除去）
 - Socket Mode（公開エンドポイントなし）、メンション/DMのみ応答
 - CI: ruff(S含む) / mypy strict / pytest 80% / pip-audit / bandit / Trivy secret-scan

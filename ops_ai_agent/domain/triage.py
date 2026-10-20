@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 from ops_ai_agent.domain.analysis import filter_records, format_summary, summarize
+from ops_ai_agent.domain.masking import mask_sensitive
 from ops_ai_agent.domain.models import LogRecord, TriageReport
 from ops_ai_agent.ports.llm import (
     LlmPort,
@@ -386,7 +387,9 @@ class TriageService:
     ) -> str:
         parts: list[str] = []
         if alert_text:
-            parts.append("アラート（データ）:\n" + _wrap("untrusted-alert", alert_text))
+            # アラート本文（Bot/CLI/Webhook 由来の信頼できないテキスト）もマスクする
+            alert_body = _wrap("untrusted-alert", mask_sensitive(alert_text))
+            parts.append("アラート（データ）:\n" + alert_body)
         parts.append("ログ統計ヘッダー:\n" + format_summary(summarize(records)))
         log_lines = [record.raw for record in records]
         if len(log_lines) > _MAX_LOG_LINES:
