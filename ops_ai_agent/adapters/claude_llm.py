@@ -7,6 +7,7 @@ from typing import Any, cast
 import anthropic
 
 from ops_ai_agent.adapters.retry import call_with_retry
+from ops_ai_agent.adapters.usage_log import JsonlUsageLogger
 from ops_ai_agent.config import Settings
 from ops_ai_agent.ports.llm import (
     Block,
@@ -15,6 +16,7 @@ from ops_ai_agent.ports.llm import (
     TextBlock,
     ToolSpec,
     ToolUseBlock,
+    Usage,
 )
 
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -41,6 +43,7 @@ class ClaudeLlmAdapter:
         max_tokens: int = 16000,
         max_retries: int = 2,
         sleeper: Callable[[float], None] = time.sleep,
+        on_usage: Callable[[str, Usage], None] | None = None,
     ) -> None:
         self._client: Any = client
         self._model = model
@@ -48,6 +51,8 @@ class ClaudeLlmAdapter:
         self._max_tokens = max_tokens
         self._max_retries = max_retries
         self._sleeper = sleeper
+        self._on_usage = on_usage
+        self._model_name = model
 
     def complete(
         self,
@@ -89,7 +94,10 @@ class ClaudeLlmAdapter:
             retryable=_is_retryable_error,
             sleeper=self._sleeper,
         )
-        return self._to_domain_response(response)
+        domain_response = self._to_domain_response(response)
+        if domain_response.usage is not None and self._on_usage is not None:
+            self._on_usage(self._model_name, domain_response.usage)
+        return domain_response
 
     def _to_sdk_message(self, message: Message) -> dict[str, object]:
         return {
@@ -129,7 +137,25 @@ class ClaudeLlmAdapter:
                     )
                 )
             # thinking 等のその他ブロックはスキップ
-        return LlmResponse(stop_reason=response.stop_reason, content=content)
+        usage = None
+        sdk_usage = getattr(response, "usage", None)
+        if sdk_usage is not None:
+            usage = Usage(
+                input_tokens=getattr(sdk_usage, "input_tokens", 0),
+                output_tokens=getattr(sdk_usage, "output_tokens", 0),
+            )
+        return LlmResponse(
+            stop_reason=response.stop_reason, content=content, usage=usage
+        )
+
+
+def _record_usage(
+    logger_: JsonlUsageLogger,
+) -> Callable[[str, Usage], None]:
+    def on_usage(model: str, usage: Usage) -> None:
+        logger_.record(model, usage)
+
+    return on_usage
 
 
 def create_claude_llm(settings: Settings) -> ClaudeLlmAdapter:
@@ -138,9 +164,12 @@ def create_claude_llm(settings: Settings) -> ClaudeLlmAdapter:
     client = anthropic.Anthropic(
         api_key=settings.require_anthropic_key(), max_retries=0
     )
+    # usage記録は既定で data/usage.jsonl に行う（失敗してもtriageは止めない）
+    usage_logger = JsonlUsageLogger(settings.data_dir / "usage.jsonl")
     return ClaudeLlmAdapter(
         client,
         model=settings.model,
         effort=settings.effort,
         max_retries=settings.max_retries,
+        on_usage=_record_usage(usage_logger),
     )

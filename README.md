@@ -22,6 +22,8 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
 - **自動起票**: 重要度しきい値以上のレポートをJiraへ重複なしで自動起票
 - **Eval**: golden set（`eval/golden/*.json`）に対する triage 精度を数値化し、
   プロンプト・モデル変更時の回帰を検出
+- **コスト可視化**: LLM usage（入出力トークン・概算コスト）を `data/usage.jsonl`
+  に記録し、`ops-agent usage` で集計
 
 ## クイックスタート
 

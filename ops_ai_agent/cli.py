@@ -212,6 +212,30 @@ def _wrap_untrusted(tag: str, text: str) -> str:
 
 
 @app.command()
+def usage() -> None:
+    """data/usage.jsonl のトークン/概算コスト集計を表示する。"""
+    from ops_ai_agent.adapters.usage_log import JsonlUsageLogger
+
+    logger_ = JsonlUsageLogger(Settings().data_dir / "usage.jsonl")
+    records = logger_.load()
+    if not records:
+        typer.echo("usage記録はありません。")
+        return
+    summary = logger_.summarize()
+    typer.echo(
+        f"runs={summary.runs} input_tokens={summary.input_tokens} "
+        f"output_tokens={summary.output_tokens} "
+        f"total_cost_usd={summary.total_cost_usd:.4f}"
+    )
+    for record in records[-5:]:
+        typer.echo(
+            f"  {record.created_at} model={record.model} "
+            f"in={record.input_tokens} out={record.output_tokens} "
+            f"cost={record.cost_usd if record.cost_usd is not None else '不明'}"
+        )
+
+
+@app.command()
 def ask(
     question: str = typer.Argument(..., help="ナレッジへの質問"),
     top_k: int = typer.Option(3, "--top-k", help="検索上位件数"),
