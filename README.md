@@ -24,6 +24,8 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
   プロンプト・モデル変更時の回帰を検出
 - **コスト可視化**: LLM usage（入出力トークン・概算コスト）を `data/usage.jsonl`
   に記録し、`ops-agent usage` で集計
+- **実行履歴（監査ログ）**: triage レポートを `data/history.jsonl` に追記保存し、
+  `ops-agent history` で後から参照（Slack通知とは thread_ts で紐付け）
 
 ## クイックスタート
 
@@ -37,6 +39,8 @@ uv run ops-agent ask "5xx急増の過去事例は？"
 uv run ops-agent bot                            # Slack Socket Mode Bot
 uv run ops-agent webhook                        # アラートWebhook受付サーバ
 uv run ops-agent eval --cases eval/golden   # golden set 回帰テスト（要APIキー）
+uv run ops-agent usage                      # トークン/コスト集計を表示
+uv run ops-agent history list               # triage実行履歴を新しい順に表示
 uv run ops-agent feedback list                  # 承認待ちフィードバック一覧
 uv run ops-agent feedback accept <id>           # 承認してナレッジへ反映
 uv run ops-agent index                          # 反映後にインデックス再構築
