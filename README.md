@@ -20,6 +20,8 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
 - **メトリクス照会**: `OPS_AGENT_PROMETHEUS_URL` 設定時、エージェントが PromQL
   即時クエリで定量根拠を収集
 - **自動起票**: 重要度しきい値以上のレポートをJiraへ重複なしで自動起票
+- **Eval**: golden set（`eval/golden/*.json`）に対する triage 精度を数値化し、
+  プロンプト・モデル変更時の回帰を検出
 
 ## クイックスタート
 
@@ -32,6 +34,7 @@ uv run ops-agent triage --alert "ALERT: 5xx急増" --notify slack
 uv run ops-agent ask "5xx急増の過去事例は？"
 uv run ops-agent bot                            # Slack Socket Mode Bot
 uv run ops-agent webhook                        # アラートWebhook受付サーバ
+uv run ops-agent eval --cases eval/golden   # golden set 回帰テスト（要APIキー）
 uv run ops-agent feedback list                  # 承認待ちフィードバック一覧
 uv run ops-agent feedback accept <id>           # 承認してナレッジへ反映
 uv run ops-agent index                          # 反映後にインデックス再構築

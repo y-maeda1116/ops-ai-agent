@@ -146,6 +146,58 @@ def _maybe_create_ticket(settings: Settings, report: TriageReport) -> str | None
     return url
 
 
+@app.command("eval")
+def eval_(
+    cases: Path = typer.Option(
+        Path("eval/golden"), "--cases", help="golden set ディレクトリ"
+    ),
+    min_severity_accuracy: float = typer.Option(
+        0.8, "--min-severity-accuracy", help="回帰とみなす severity 精度の下限"
+    ),
+) -> None:
+    """golden set に対して triage を実行し、精度を数値化する。"""
+    from ops_ai_agent.domain.eval import (
+        load_golden_cases,
+        score_report,
+        summarize_eval,
+    )
+
+    golden = load_golden_cases(cases)
+    if not golden:
+        typer.echo(f"エラー: golden set が空です: {cases}", err=True)
+        raise typer.Exit(1)
+    settings = Settings()
+    service = TriageService(
+        _build_llm(settings),
+        _build_retriever(settings),
+        max_iterations=settings.max_iterations,
+        metrics=create_prometheus_metrics(settings),
+    )
+    scores = []
+    for case in golden:
+        records = parse_log_text(case.log_text).records
+        report = service.triage(records)
+        scores.append(score_report(report, case))
+        typer.echo(
+            f"{case.name}: severity_match={scores[-1].severity_match} "
+            f"cause={scores[-1].cause_hit_rate:.2f} "
+            f"action={scores[-1].action_hit_rate:.2f}",
+            err=True,
+        )
+    summary = summarize_eval(scores)
+    typer.echo(
+        f"total={summary.total} severity_accuracy={summary.severity_accuracy:.2f} "
+        f"mean_cause_hit_rate={summary.mean_cause_hit_rate:.2f} "
+        f"mean_action_hit_rate={summary.mean_action_hit_rate:.2f}"
+    )
+    if summary.severity_accuracy < min_severity_accuracy:
+        typer.echo(
+            "エラー: severity_accuracy がしきい値を下回りました（回帰の可能性）",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+
 _ASK_SYSTEM = (
     "あなたは運用ナレッジ検索アシスタントです。提供された文書だけを根拠に"
     "日本語で簡潔に回答してください。文書に無い内容には『不明』と答え、"
