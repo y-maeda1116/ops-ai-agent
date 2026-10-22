@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import datetime
 
 from ops_ai_agent.bot import create_app, extract_log_text, handle_triage_request
 from ops_ai_agent.config import Settings
@@ -164,3 +165,76 @@ def test_handle_triage_request_error_is_logged_with_traceback(caplog):
 def test_create_app_registers_handlers():
     app = create_app("xoxb-test", service=_service(), settings=Settings(_env_file=None))
     assert app is not None
+
+
+def test_handle_feedback_action_stores_record_and_replies(tmp_path):
+    from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+    from ops_ai_agent.bot import handle_feedback_action
+
+    store = JsonFeedbackStore(tmp_path / "feedback.json")
+    calls: list[dict] = []
+
+    def respond(**kwargs) -> None:
+        calls.append(kwargs)
+
+    body = {
+        "actions": [
+            {
+                "action_id": "feedback_helpful",
+                "value": json.dumps(
+                    {
+                        "summary": "アップストリームタイムアウトの疑い。",
+                        "severity": "high",
+                        "possible_causes": ["遅延"],
+                        "recommended_actions": ["ロールバック"],
+                        "context": "slack:C1",
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+        ],
+        "user": {"id": "U1"},
+        "message": {"ts": "1000.3000"},
+    }
+    handle_feedback_action(
+        body,
+        respond,
+        store=store,
+        id_factory=lambda: "fb-fixed",
+        now_factory=lambda: datetime(2026, 10, 22, 9, 0),
+    )
+    record = store.get("fb-fixed")
+    assert record.helpful is True
+    assert record.summary == "アップストリームタイムアウトの疑い。"
+    assert record.status == "pending"
+    assert calls and calls[0]["thread_ts"] == "1000.3000"
+
+
+def test_handle_feedback_action_invalid_value_replies_error(tmp_path):
+    from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+    from ops_ai_agent.bot import handle_feedback_action
+
+    store = JsonFeedbackStore(tmp_path / "feedback.json")
+    calls: list[dict] = []
+
+    def respond(**kwargs) -> None:
+        calls.append(kwargs)
+
+    body = {
+        "actions": [{"action_id": "feedback_helpful", "value": "not-json"}],
+        "user": {"id": "U1"},
+        "message": {"ts": "1000.3000"},
+    }
+    handle_feedback_action(body, respond, store=store)
+    assert store.list_pending() == []
+    assert calls and "失敗" in calls[0]["text"]
+
+
+def test_handle_triage_request_attaches_feedback_buttons():
+    calls, say = _make_say()
+    event = _event("<@U1> ```\n2026-10-03T12:00:00Z ERROR [api-gateway] timeout\n```")
+    handle_triage_request(
+        event, say, service=_service(), settings=Settings(_env_file=None)
+    )
+    blocks = calls[0]["blocks"]
+    assert any(b.get("type") == "actions" for b in blocks)

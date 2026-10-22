@@ -9,10 +9,12 @@ import typer
 
 from ops_ai_agent.adapters.claude_llm import create_claude_llm
 from ops_ai_agent.adapters.console import ConsoleNotifier, report_to_markdown
+from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
 from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
 from ops_ai_agent.adapters.knowledge_base import KnowledgeBase
 from ops_ai_agent.adapters.voyage_embeddings import create_voyage_embedder
 from ops_ai_agent.config import Settings
+from ops_ai_agent.domain.feedback import feedback_to_markdown
 from ops_ai_agent.domain.ingest import parse_log_text, read_log_source
 from ops_ai_agent.domain.models import TriageReport
 from ops_ai_agent.domain.triage import TriageRefusalError, TriageService
@@ -202,6 +204,66 @@ def webhook(
         max_per_minute=settings.webhook_rate_limit,
         port=settings.webhook_port,
     )
+
+
+feedback_app = typer.Typer(help="triageフィードバックの管理（list/accept/reject）")
+app.add_typer(feedback_app, name="feedback")
+
+
+def _feedback_store(settings: Settings) -> JsonFeedbackStore:
+    return JsonFeedbackStore(settings.data_dir / "feedback.json")
+
+
+@feedback_app.command("list")
+def feedback_list() -> None:
+    """承認待ちのフィードバック一覧を表示する。"""
+    pending = _feedback_store(Settings()).list_pending()
+    if not pending:
+        typer.echo("承認待ちのフィードバックはありません。")
+        return
+    for record in pending:
+        mark = "👍" if record.helpful else "👎"
+        typer.echo(
+            f"{record.id}  {mark}  [{record.severity}] {record.summary}"
+            f"  ({record.context})"
+        )
+
+
+def _set_feedback_status(
+    feedback_id: str, status: Literal["accepted", "rejected"]
+) -> None:
+    settings = Settings()
+    store = _feedback_store(settings)
+    try:
+        record = store.get(feedback_id)
+    except KeyError:
+        typer.echo(f"エラー: フィードバックが見つかりません: {feedback_id}", err=True)
+        raise typer.Exit(1) from None
+    if status == "accepted":
+        # 採択したフィードバックを過去インシデントとしてナレッジ化する
+        dest_dir = settings.knowledge_dir / "incidents"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / f"{record.id}.md"
+        dest.write_text(feedback_to_markdown(record), encoding="utf-8")
+        typer.echo(f"ナレッジに反映しました: {dest}")
+    store.set_status(record.id, status)
+    typer.echo(f"{record.id} を {status} にしました。")
+
+
+@feedback_app.command("accept")
+def feedback_accept(
+    feedback_id: str = typer.Argument(..., help="フィードバックID"),
+) -> None:
+    """フィードバックを承認し、過去インシデントとしてナレッジに反映する。"""
+    _set_feedback_status(feedback_id, "accepted")
+
+
+@feedback_app.command("reject")
+def feedback_reject(
+    feedback_id: str = typer.Argument(..., help="フィードバックID"),
+) -> None:
+    """フィードバックを却下する。"""
+    _set_feedback_status(feedback_id, "rejected")
 
 
 def main() -> None:

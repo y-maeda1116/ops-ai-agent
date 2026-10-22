@@ -15,6 +15,8 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
 - **Slack Bot**: メンション/DMでログを受信しスレッドに切り分け結果を返信
 - **Webhook**: Alertmanager / PagerDuty / Grafana のアラートを HTTP 受信し自動切り分け
   （HMAC-SHA256 署名検証・レート制限付き）
+- **フィードバックループ**: Slack レポートの 👍/👎 ボタンで評価を収集し、
+  `ops-agent feedback accept` で過去インシデントとしてナレッジに反映
 
 ## クイックスタート
 
@@ -27,6 +29,9 @@ uv run ops-agent triage --alert "ALERT: 5xx急増" --notify slack
 uv run ops-agent ask "5xx急増の過去事例は？"
 uv run ops-agent bot                            # Slack Socket Mode Bot
 uv run ops-agent webhook                        # アラートWebhook受付サーバ
+uv run ops-agent feedback list                  # 承認待ちフィードバック一覧
+uv run ops-agent feedback accept <id>           # 承認してナレッジへ反映
+uv run ops-agent index                          # 反映後にインデックス再構築
 ```
 
 ### 環境変数

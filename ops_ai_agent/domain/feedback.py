@@ -1,9 +1,12 @@
 """triage フィードバックのドメインモデルとナレッジ化。"""
 
+import json
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
+
+from ops_ai_agent.domain.models import TriageReport
 
 
 class FeedbackRecord(BaseModel):
@@ -18,6 +21,20 @@ class FeedbackRecord(BaseModel):
     context: str
     created_at: datetime
     status: Literal["pending", "accepted", "rejected"] = "pending"
+
+
+def feedback_value_from_report(report: TriageReport, context: str) -> str:
+    """Slack ボタン value 用のコンパクトな JSON を生成する。"""
+    return json.dumps(
+        {
+            "summary": report.summary,
+            "severity": report.severity,
+            "possible_causes": [c.description for c in report.possible_causes],
+            "recommended_actions": [a.description for a in report.recommended_actions],
+            "context": context,
+        },
+        ensure_ascii=False,
+    )
 
 
 def feedback_to_markdown(record: FeedbackRecord) -> str:
