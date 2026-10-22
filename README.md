@@ -17,6 +17,9 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
   （HMAC-SHA256 署名検証・レート制限付き）
 - **フィードバックループ**: Slack レポートの 👍/👎 ボタンで評価を収集し、
   `ops-agent feedback accept` で過去インシデントとしてナレッジに反映
+- **メトリクス照会**: `OPS_AGENT_PROMETHEUS_URL` 設定時、エージェントが PromQL
+  即時クエリで定量根拠を収集
+- **自動起票**: 重要度しきい値以上のレポートをJiraへ重複なしで自動起票
 
 ## クイックスタート
 
@@ -51,6 +54,11 @@ uv run ops-agent index                          # 反映後にインデックス
 | `OPS_AGENT_WEBHOOK_PORT` | - | Webhook サーバのポート（既定: 8080） |
 | `OPS_AGENT_WEBHOOK_RATE_LIMIT` | - | Webhook の毎分リクエスト上限（既定: 30） |
 | `OPS_AGENT_PROMETHEUS_URL` | - | Prometheus のベースURL。設定すると triage エージェントが `get_metrics` ツール（PromQL 即時クエリ）を使えるようになる |
+| `OPS_AGENT_TICKET_SEVERITY_THRESHOLD` | critical | 自動起票する重要度しきい値（low/medium/high/critical） |
+| `OPS_AGENT_JIRA_BASE_URL` | - | Jira ベースURL（EMAIL/API_TOKEN/PROJECT_KEY と併せて設定で自動起票を有効化） |
+| `OPS_AGENT_JIRA_EMAIL` | - | Jira 認証メールアドレス |
+| `OPS_AGENT_JIRA_API_TOKEN` | - | Jira API トークン |
+| `OPS_AGENT_JIRA_PROJECT_KEY` | - | 起票先プロジェクトキー |
 
 ※1: Slack機能を使う場合のみ。
 ※2: 未設定の場合は署名検証なしで動作（本番では設定を推奨）。

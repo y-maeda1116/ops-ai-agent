@@ -342,3 +342,46 @@ def test_index_command_full_flag_rebuilds(tmp_path, monkeypatch):
     )
     result = runner.invoke(app, ["index", "--full"])
     assert result.exit_code == 0
+
+
+class _RecordingTickets:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    def create_ticket(self, title: str, description: str, *, severity: str) -> str:
+        self.calls.append((title, description, severity))
+        return "https://jira.example.com/browse/OPS-1"
+
+
+def test_triage_creates_ticket_above_threshold(tmp_path, monkeypatch):
+    _patch_factories(monkeypatch, tmp_path)
+    tickets = _RecordingTickets()
+    monkeypatch.setattr(cli_module, "create_jira_tickets", lambda settings: tickets)
+    monkeypatch.setenv("OPS_AGENT_TICKET_SEVERITY_THRESHOLD", "high")
+    log = _write_log(tmp_path)
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0
+    assert len(tickets.calls) == 1
+    assert tickets.calls[0][2] == "high"
+    # 再実行（同じsummary）では重複起票しない
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0
+    assert len(tickets.calls) == 1
+
+
+def test_triage_skips_ticket_below_threshold(tmp_path, monkeypatch):
+    _patch_factories(monkeypatch, tmp_path)
+    tickets = _RecordingTickets()
+    monkeypatch.setattr(cli_module, "create_jira_tickets", lambda settings: tickets)
+    # 既定しきい値は critical（フィクスチャの high は起票対象外）
+    log = _write_log(tmp_path)
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0
+    assert tickets.calls == []
+
+
+def test_triage_without_jira_config_creates_nothing(tmp_path, monkeypatch):
+    _patch_factories(monkeypatch, tmp_path)
+    log = _write_log(tmp_path)
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0

@@ -17,6 +17,8 @@ def test_settings_defaults(tmp_path, monkeypatch):
     assert settings.webhook_port == 8080
     assert settings.webhook_rate_limit == 30
     assert settings.prometheus_url is None
+    assert settings.ticket_severity_threshold == "critical"
+    assert settings.jira_base_url is None
     assert settings.knowledge_dir.as_posix() == "knowledge"
     assert settings.data_dir.as_posix() == "data"
     assert settings.anthropic_api_key is None
@@ -31,6 +33,8 @@ def test_settings_env_overrides(tmp_path, monkeypatch):
     monkeypatch.setenv("OPS_AGENT_WEBHOOK_PORT", "9090")
     monkeypatch.setenv("OPS_AGENT_WEBHOOK_RATE_LIMIT", "60")
     monkeypatch.setenv("OPS_AGENT_PROMETHEUS_URL", "http://prometheus:9090")
+    monkeypatch.setenv("OPS_AGENT_TICKET_SEVERITY_THRESHOLD", "high")
+    monkeypatch.setenv("OPS_AGENT_JIRA_BASE_URL", "https://jira.example.com")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     settings = Settings(_env_file=None)
     assert settings.model == "claude-sonnet-5-5"
@@ -40,6 +44,8 @@ def test_settings_env_overrides(tmp_path, monkeypatch):
     assert settings.webhook_port == 9090
     assert settings.webhook_rate_limit == 60
     assert settings.prometheus_url == "http://prometheus:9090"
+    assert settings.ticket_severity_threshold == "high"
+    assert settings.jira_base_url == "https://jira.example.com"
     assert settings.anthropic_api_key == "sk-test"
 
 

@@ -10,14 +10,17 @@ import typer
 from ops_ai_agent.adapters.claude_llm import create_claude_llm
 from ops_ai_agent.adapters.console import ConsoleNotifier, report_to_markdown
 from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+from ops_ai_agent.adapters.jira import create_jira_tickets
 from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
 from ops_ai_agent.adapters.knowledge_base import KnowledgeBase
 from ops_ai_agent.adapters.prometheus import create_prometheus_metrics
+from ops_ai_agent.adapters.ticket_store import JsonTicketStore
 from ops_ai_agent.adapters.voyage_embeddings import create_voyage_embedder
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.feedback import feedback_to_markdown
 from ops_ai_agent.domain.ingest import parse_log_text, read_log_source
 from ops_ai_agent.domain.models import TriageReport
+from ops_ai_agent.domain.ticketing import create_ticket_if_needed
 from ops_ai_agent.domain.triage import TriageRefusalError, TriageService
 from ops_ai_agent.domain.webhook import NormalizedAlert, to_alert_text
 from ops_ai_agent.ports.llm import LlmPort, Message, TextBlock
@@ -122,6 +125,25 @@ def triage(
         # 通知先が失敗してもレポート自体は失わないようstdoutにも出力する
         typer.echo(report_to_markdown(report, context=context))
     notifier.send_report(report, context=context)
+    _maybe_create_ticket(settings, report)
+
+
+def _maybe_create_ticket(settings: Settings, report: TriageReport) -> str | None:
+    """重要度しきい値以上ならJiraへ重複なしで自動起票する。"""
+    tickets = create_jira_tickets(settings)
+    if tickets is None:
+        return None
+    url = create_ticket_if_needed(
+        report,
+        tickets,
+        JsonTicketStore(settings.data_dir / "tickets.json"),
+        threshold=settings.ticket_severity_threshold,
+        title=f"[triage][{report.severity}] {report.summary}",
+        description=report_to_markdown(report),
+    )
+    if url is not None:
+        typer.echo(f"インシデントチケットを起票しました: {url}", err=True)
+    return url
 
 
 _ASK_SYSTEM = (
@@ -191,6 +213,7 @@ def build_webhook_on_alert(
         )
         report = service.triage([], alert_text=to_alert_text(alert))
         _build_notifier(notify).send_report(report, context=f"webhook:{alert.source}")
+        _maybe_create_ticket(settings, report)
         return report
 
     return on_alert

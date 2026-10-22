@@ -14,7 +14,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
 from ops_ai_agent.adapters.prometheus import create_prometheus_metrics
 from ops_ai_agent.adapters.slack import report_to_blocks
-from ops_ai_agent.cli import _build_llm, _build_retriever
+from ops_ai_agent.cli import _build_llm, _build_retriever, _maybe_create_ticket
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.feedback import FeedbackRecord, feedback_value_from_report
 from ops_ai_agent.domain.ingest import parse_log_text
@@ -85,6 +85,16 @@ def handle_triage_request(
         thread_ts=thread_ts,
         text=f"障害一次切り分けレポート（{report.severity}）: {report.summary}",
     )
+    try:
+        ticket_url = _maybe_create_ticket(settings, report)
+    except Exception:
+        logger.exception("ticket creation failed")
+        ticket_url = None
+    if ticket_url is not None:
+        say(
+            text=f"インシデントチケットを起票しました: {ticket_url}",
+            thread_ts=thread_ts,
+        )
 
 
 def handle_feedback_action(
