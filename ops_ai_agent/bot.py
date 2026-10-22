@@ -12,6 +12,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+from ops_ai_agent.adapters.prometheus import create_prometheus_metrics
 from ops_ai_agent.adapters.slack import report_to_blocks
 from ops_ai_agent.cli import _build_llm, _build_retriever
 from ops_ai_agent.config import Settings
@@ -163,6 +164,7 @@ def run_bot(settings: Settings) -> None:
         _build_llm(settings),
         _build_retriever(settings),
         max_iterations=settings.max_iterations,
+        metrics=create_prometheus_metrics(settings),
     )
     app = create_app(settings.slack_bot_token, service=service, settings=settings)
     # SocketModeHandler は型スタブを持たないため Any 経由で起動する

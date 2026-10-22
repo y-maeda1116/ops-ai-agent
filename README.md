@@ -50,6 +50,7 @@ uv run ops-agent index                          # 反映後にインデックス
 | `OPS_AGENT_WEBHOOK_SECRET` | ※2 | Webhook 署名検証用シークレット（`X-Signature: sha256=<HMAC>`） |
 | `OPS_AGENT_WEBHOOK_PORT` | - | Webhook サーバのポート（既定: 8080） |
 | `OPS_AGENT_WEBHOOK_RATE_LIMIT` | - | Webhook の毎分リクエスト上限（既定: 30） |
+| `OPS_AGENT_PROMETHEUS_URL` | - | Prometheus のベースURL。設定すると triage エージェントが `get_metrics` ツール（PromQL 即時クエリ）を使えるようになる |
 
 ※1: Slack機能を使う場合のみ。
 ※2: 未設定の場合は署名検証なしで動作（本番では設定を推奨）。

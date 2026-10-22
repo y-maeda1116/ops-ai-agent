@@ -394,13 +394,11 @@ def test_get_metrics_tool_returns_wrapped_result():
 
 def test_tools_include_get_metrics_only_with_metrics_port():
     fake_llm = FakeLlm([_end_turn()])
-    TriageService(fake_llm, StubRetriever(), metrics=StubMetrics()).triage(
-        _records()
-    )
-    tool_names = [t["name"] for t in fake_llm.requests[0]["tools"]]  # type: ignore[index]
+    TriageService(fake_llm, StubRetriever(), metrics=StubMetrics()).triage(_records())
+    tool_names = [t.name for t in fake_llm.requests[0]["tools"]]  # type: ignore[index]
     assert "get_metrics" in tool_names
 
     plain_llm = FakeLlm([_end_turn()])
     TriageService(plain_llm, StubRetriever()).triage(_records())
-    plain_names = [t["name"] for t in plain_llm.requests[0]["tools"]]  # type: ignore[index]
+    plain_names = [t.name for t in plain_llm.requests[0]["tools"]]  # type: ignore[index]
     assert "get_metrics" not in plain_names

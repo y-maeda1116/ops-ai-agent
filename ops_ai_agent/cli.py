@@ -12,6 +12,7 @@ from ops_ai_agent.adapters.console import ConsoleNotifier, report_to_markdown
 from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
 from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
 from ops_ai_agent.adapters.knowledge_base import KnowledgeBase
+from ops_ai_agent.adapters.prometheus import create_prometheus_metrics
 from ops_ai_agent.adapters.voyage_embeddings import create_voyage_embedder
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.feedback import feedback_to_markdown
@@ -110,6 +111,7 @@ def triage(
             _build_llm(settings),
             _build_retriever(settings),
             max_iterations=settings.max_iterations,
+            metrics=create_prometheus_metrics(settings),
         )
         report = service.triage(records, alert_text=alert)
         notifier = _build_notifier(notify)
@@ -185,6 +187,7 @@ def build_webhook_on_alert(
             _build_llm(settings),
             _build_retriever(settings),
             max_iterations=settings.max_iterations,
+            metrics=create_prometheus_metrics(settings),
         )
         report = service.triage([], alert_text=to_alert_text(alert))
         _build_notifier(notify).send_report(report, context=f"webhook:{alert.source}")
