@@ -14,7 +14,12 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
 from ops_ai_agent.adapters.prometheus import create_prometheus_metrics
 from ops_ai_agent.adapters.slack import report_to_blocks
-from ops_ai_agent.cli import _build_llm, _build_retriever, _maybe_create_ticket
+from ops_ai_agent.cli import (
+    _build_llm,
+    _build_retriever,
+    _maybe_create_ticket,
+    _save_history,
+)
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.feedback import FeedbackRecord, feedback_value_from_report
 from ops_ai_agent.domain.ingest import parse_log_text
@@ -85,6 +90,16 @@ def handle_triage_request(
         thread_ts=thread_ts,
         text=f"障害一次切り分けレポート（{report.severity}）: {report.summary}",
     )
+    # 実行履歴（監査ログ）をSlack通知と紐付けて保存する
+    try:
+        _save_history(
+            settings,
+            report,
+            f"slack:{event.get('channel', '')}",
+            thread_ts=str(thread_ts) if thread_ts else None,
+        )
+    except Exception:
+        logger.exception("history save failed")
     try:
         ticket_url = _maybe_create_ticket(settings, report)
     except Exception:

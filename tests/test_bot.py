@@ -3,6 +3,9 @@
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 from ops_ai_agent.bot import create_app, extract_log_text, handle_triage_request
 from ops_ai_agent.config import Settings
@@ -238,3 +241,23 @@ def test_handle_triage_request_attaches_feedback_buttons():
     )
     blocks = calls[0]["blocks"]
     assert any(b.get("type") == "actions" for b in blocks)
+
+
+@pytest.fixture(autouse=True)
+def _tmp_cwd(tmp_path, monkeypatch):
+    # 履歴保存（data/history.jsonl）がリポジトリ直下に漏れないよう各テストで隔離
+    monkeypatch.chdir(tmp_path)
+
+
+def test_handle_triage_request_saves_history_with_thread_ts(tmp_path):
+    calls, say = _make_say()
+    event = _event("<@U1> ```\n2026-10-03T12:00:00Z ERROR [api] timeout\n```")
+    handle_triage_request(
+        event, say, service=_service(), settings=Settings(_env_file=None)
+    )
+    from ops_ai_agent.adapters.history_store import JsonHistoryStore
+
+    records = JsonHistoryStore(Path("data/history.jsonl")).list()
+    assert len(records) == 1
+    assert records[0].thread_ts == "1000.2000"
+    assert records[0].context.startswith("slack:")

@@ -2,14 +2,17 @@
 
 import secrets
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
 import typer
 
 from ops_ai_agent.adapters.claude_llm import create_claude_llm
 from ops_ai_agent.adapters.console import ConsoleNotifier, report_to_markdown
 from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+from ops_ai_agent.adapters.history_store import JsonHistoryStore
 from ops_ai_agent.adapters.jira import create_jira_tickets
 from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
 from ops_ai_agent.adapters.knowledge_base import KnowledgeBase
@@ -18,6 +21,7 @@ from ops_ai_agent.adapters.ticket_store import JsonTicketStore
 from ops_ai_agent.adapters.voyage_embeddings import create_voyage_embedder
 from ops_ai_agent.config import Settings
 from ops_ai_agent.domain.feedback import feedback_to_markdown
+from ops_ai_agent.domain.history import TriageHistoryRecord
 from ops_ai_agent.domain.ingest import parse_log_text, read_log_source
 from ops_ai_agent.domain.models import TriageReport
 from ops_ai_agent.domain.ticketing import create_ticket_if_needed
@@ -125,6 +129,8 @@ def triage(
         # 通知先が失敗してもレポート自体は失わないようstdoutにも出力する
         typer.echo(report_to_markdown(report, context=context))
     notifier.send_report(report, context=context)
+    history_id = _save_history(settings, report, context)
+    typer.echo(f"実行履歴: {history_id}", err=True)
     _maybe_create_ticket(settings, report)
 
 
@@ -289,6 +295,7 @@ def build_webhook_on_alert(
         )
         report = service.triage([], alert_text=to_alert_text(alert))
         _build_notifier(notify).send_report(report, context=f"webhook:{alert.source}")
+        _save_history(settings, report, f"webhook:{alert.source}")
         _maybe_create_ticket(settings, report)
         return report
 
@@ -319,6 +326,59 @@ def webhook(
 
 feedback_app = typer.Typer(help="triageフィードバックの管理（list/accept/reject）")
 app.add_typer(feedback_app, name="feedback")
+
+history_app = typer.Typer(help="triage実行履歴の参照（list/show）")
+app.add_typer(history_app, name="history")
+
+
+def _save_history(
+    settings: Settings,
+    report: TriageReport,
+    context: str,
+    *,
+    thread_ts: str | None = None,
+) -> str:
+    """triage レポートを実行履歴（data/history.jsonl）へ保存してIDを返す。"""
+    record = TriageHistoryRecord(
+        id=f"th-{uuid4().hex[:12]}",
+        created_at=datetime.now(tz=UTC).isoformat(),
+        context=context,
+        report=report,
+        thread_ts=thread_ts,
+    )
+    JsonHistoryStore(settings.data_dir / "history.jsonl").add(record)
+    return record.id
+
+
+@history_app.command("list")
+def history_list(
+    limit: int = typer.Option(10, "--limit", help="表示件数"),
+) -> None:
+    """実行履歴を新しい順に表示する。"""
+    records = _history_store(Settings()).list(limit=limit)
+    if not records:
+        typer.echo("実行履歴はありません。")
+        return
+    for record in records:
+        typer.echo(
+            f"{record.id}  {record.created_at}  [{record.report.severity}] "
+            f"{record.context}  {record.report.summary}"
+        )
+
+
+@history_app.command("show")
+def history_show(record_id: str = typer.Argument(..., help="履歴ID (th-*)")) -> None:
+    """指定IDの実行履歴をMarkdownレポートで表示する。"""
+    try:
+        record = _history_store(Settings()).get(record_id)
+    except KeyError:
+        typer.echo(f"エラー: 履歴が見つかりません: {record_id}", err=True)
+        raise typer.Exit(1) from None
+    typer.echo(report_to_markdown(record.report, context=record.context))
+
+
+def _history_store(settings: Settings) -> JsonHistoryStore:
+    return JsonHistoryStore(settings.data_dir / "history.jsonl")
 
 
 def _feedback_store(settings: Settings) -> JsonFeedbackStore:
