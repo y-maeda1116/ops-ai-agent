@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     webhook_rate_limit: int = Field(
         default=30, validation_alias="OPS_AGENT_WEBHOOK_RATE_LIMIT"
     )
+    prometheus_url: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_PROMETHEUS_URL"
+    )
     slack_channel: str = Field(
         default="#ops-alerts", validation_alias="OPS_AGENT_SLACK_CHANNEL"
     )
