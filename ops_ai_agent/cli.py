@@ -22,7 +22,7 @@ from ops_ai_agent.domain.webhook import NormalizedAlert, to_alert_text
 from ops_ai_agent.ports.llm import LlmPort, Message, TextBlock
 from ops_ai_agent.ports.notifier import NotifierPort
 from ops_ai_agent.ports.retriever import KnowledgeRetrieverPort
-from ops_ai_agent.rag.indexer import build_index
+from ops_ai_agent.rag.indexer import build_index, update_index
 
 app = typer.Typer(
     help="Ops AI Agent - 障害一次切り分け・ログ解析エージェント",
@@ -62,14 +62,23 @@ def index(
         None, "--knowledge-dir", help="ナレッジディレクトリ"
     ),
     output: Path | None = typer.Option(None, "--output", help="index.jsonの出力先"),
+    full: bool = typer.Option(False, "--full", help="差分ではなく全件を再構築する"),
 ) -> None:
-    """ナレッジ（過去インシデント/runbook）のインデックスを構築する。"""
+    """ナレッジ（過去インシデント/runbook）のインデックスを構築する（差分更新）。"""
     settings = Settings()
-    count = build_index(
-        knowledge_dir or settings.knowledge_dir,
-        create_voyage_embedder(settings),
-        output or settings.data_dir / "index.json",
-    )
+    dest = output or settings.data_dir / "index.json"
+    if full:
+        count = build_index(
+            knowledge_dir or settings.knowledge_dir,
+            create_voyage_embedder(settings),
+            dest,
+        )
+    else:
+        count = update_index(
+            knowledge_dir or settings.knowledge_dir,
+            create_voyage_embedder(settings),
+            dest,
+        )
     typer.echo(f"インデックス構築が完了しました（チャンク数: {count}）")
 
 

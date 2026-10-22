@@ -306,3 +306,39 @@ def test_feedback_accept_unknown_id_fails(tmp_path, monkeypatch):
     result = runner.invoke(app, ["feedback", "accept", "missing"])
     assert result.exit_code != 0
     assert "見つかりません" in result.output
+
+
+def test_index_command_runs_incremental_update(tmp_path, monkeypatch):
+    from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
+    from tests.fakes import FakeEmbedder
+
+    knowledge = tmp_path / "knowledge"
+    (knowledge / "incidents").mkdir(parents=True)
+    (knowledge / "incidents" / "a.md").write_text(
+        "---\nid: INC-001\ntitle: t\nservice: s\n---\n\n本文です。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli_module, "create_voyage_embedder", lambda settings: FakeEmbedder()
+    )
+    result = runner.invoke(app, ["index"])
+    assert result.exit_code == 0
+    assert JsonVectorStore(tmp_path / "data" / "index.json").load()
+
+
+def test_index_command_full_flag_rebuilds(tmp_path, monkeypatch):
+    from tests.fakes import FakeEmbedder
+
+    knowledge = tmp_path / "knowledge"
+    (knowledge / "incidents").mkdir(parents=True)
+    (knowledge / "incidents" / "a.md").write_text(
+        "---\nid: INC-001\ntitle: t\nservice: s\n---\n\n本文です。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli_module, "create_voyage_embedder", lambda settings: FakeEmbedder()
+    )
+    result = runner.invoke(app, ["index", "--full"])
+    assert result.exit_code == 0
