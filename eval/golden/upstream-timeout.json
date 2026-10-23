@@ -1,0 +1,9 @@
+{
+  "name": "upstream-timeout",
+  "log_text": "{\"ts\":\"2026-10-03T12:00:00Z\",\"level\":\"error\",\"service\":\"api-gateway\",\"message\":\"upstream timeout\"}\n{\"ts\":\"2026-10-03T12:00:01Z\",\"level\":\"error\",\"service\":\"api-gateway\",\"message\":\"502 bad gateway from upstream payment-service\"}\n{\"ts\":\"2026-10-03T12:00:02Z\",\"level\":\"warn\",\"service\":\"api-gateway\",\"message\":\"retrying upstream request (attempt 2)\"}",
+  "expected": {
+    "severity": "high",
+    "cause_keywords": ["アップストリーム"],
+    "action_keywords": ["ロールバック"]
+  }
+}

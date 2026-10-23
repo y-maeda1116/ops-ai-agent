@@ -42,7 +42,7 @@ extend-exclude = ["docs", ".superpowers"]
 select = ["E", "F", "I", "N", "UP", "B", "A", "SIM", "S"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # テストのassertはpytestの標準的な記法
+"tests/**" = ["S101", "S105"]  # assertはpytest標準、ダミーsecret文字列はテスト用
 "ops_ai_agent/cli.py" = ["B008"]  # typer.Option をデフォルト引数に使う標準イディオム
 
 [tool.mypy]

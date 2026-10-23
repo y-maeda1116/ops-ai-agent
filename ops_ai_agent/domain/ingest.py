@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
+from ops_ai_agent.domain.masking import mask_sensitive
 from ops_ai_agent.domain.models import LogRecord
 
 _TIMESTAMP_KEYS = ("ts", "timestamp", "time")
@@ -60,6 +61,8 @@ def parse_log_text(text: str) -> IngestResult:
         if not line.strip():
             skipped.append(line)
             continue
+        # クレデンシャル等は取り込み段でマスクし、集計・LLM送信に流れないようにする
+        line = mask_sensitive(line)
         record = _parse_json_line(line) or _parse_plain_line(line)
         if record is not None:
             records.append(record)

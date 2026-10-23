@@ -1,0 +1,9 @@
+{
+  "name": "db-connection-exhaustion",
+  "log_text": "{\"ts\":\"2026-10-01T09:00:01Z\",\"level\":\"error\",\"service\":\"api\",\"message\":\"DB connection timeout: pool exhausted (max=20, active=20)\"}\n{\"ts\":\"2026-10-01T09:00:02Z\",\"level\":\"error\",\"service\":\"api\",\"message\":\"DB connection timeout: pool exhausted (max=20, active=20)\"}\n{\"ts\":\"2026-10-01T09:00:03Z\",\"level\":\"warn\",\"service\":\"api\",\"message\":\"queue wait exceeded 5000ms\"}\n{\"ts\":\"2026-10-01T09:00:05Z\",\"level\":\"error\",\"service\":\"batch\",\"message\":\"could not acquire connection\"}",
+  "expected": {
+    "severity": "high",
+    "cause_keywords": ["コネクション", "プール"],
+    "action_keywords": ["プール"]
+  }
+}

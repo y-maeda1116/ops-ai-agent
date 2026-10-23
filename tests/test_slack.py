@@ -83,3 +83,17 @@ def test_create_slack_notifier_requires_token(tmp_path, monkeypatch):
     settings = Settings(_env_file=None)
     with pytest.raises(ValueError, match="SLACK_BOT_TOKEN"):
         create_slack_notifier(settings)
+
+
+def test_report_to_blocks_with_feedback_buttons():
+    blocks = report_to_blocks(_report(), feedback_value='{"summary":"s"}')
+    actions = [b for b in blocks if b["type"] == "actions"]
+    assert len(actions) == 1
+    action_ids = [e["action_id"] for e in actions[0]["elements"]]
+    assert action_ids == ["feedback_helpful", "feedback_not_helpful"]
+    assert all(e["value"] == '{"summary":"s"}' for e in actions[0]["elements"])
+
+
+def test_report_to_blocks_without_feedback_has_no_actions():
+    blocks = report_to_blocks(_report())
+    assert not [b for b in blocks if b["type"] == "actions"]

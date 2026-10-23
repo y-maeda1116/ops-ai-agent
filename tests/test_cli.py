@@ -218,3 +218,170 @@ def test_ask_no_hits_reports_not_found(tmp_path, monkeypatch):
     result = runner.invoke(app, ["ask", "無関係な質問"])
     assert result.exit_code == 0
     assert "一致する文書" in result.stdout
+
+
+def test_help_lists_webhook_command():
+    result = runner.invoke(app, ["webhook", "--help"])
+    assert result.exit_code == 0
+    assert "Webhook" in result.stdout
+
+
+def test_build_webhook_on_alert_triages_and_notifies(tmp_path, monkeypatch):
+    from ops_ai_agent.config import Settings
+    from ops_ai_agent.domain.webhook import NormalizedAlert
+
+    _patch_factories(monkeypatch, tmp_path)
+    sent: list[TriageReport] = []
+
+    class SpyNotifier:
+        def send_report(self, report: TriageReport, *, context: str = "") -> None:
+            sent.append(report)
+
+    monkeypatch.setattr(cli_module, "_build_notifier", lambda kind: SpyNotifier())
+    settings = Settings(
+        _env_file=None,
+        anthropic_api_key="sk-test",  # type: ignore[call-arg]
+        voyage_api_key="pa-test",
+    )
+    on_alert = cli_module.build_webhook_on_alert(settings, notify="console")
+    alert = NormalizedAlert(
+        source="alertmanager",
+        title="HighErrorRate",
+        description="5xx急増",
+        severity="critical",
+        status="firing",
+    )
+    report = on_alert(alert)
+    assert report.summary == "アップストリームタイムアウトの疑い。"
+    assert len(sent) == 1
+
+
+def _seed_feedback(tmp_path: Path):
+    from datetime import UTC, datetime
+
+    from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+    from ops_ai_agent.domain.feedback import FeedbackRecord
+
+    store = JsonFeedbackStore(tmp_path / "data" / "feedback.json")
+    store.add(
+        FeedbackRecord(
+            id="fb-001",
+            helpful=True,
+            severity="high",
+            summary="アップストリームタイムアウトの疑い。",
+            possible_causes=["遅延"],
+            recommended_actions=["ロールバック"],
+            context="slack:C1",
+            created_at=datetime(2026, 10, 22, 9, 0, tzinfo=UTC),
+        )
+    )
+
+
+def test_feedback_list_shows_pending(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed_feedback(tmp_path)
+    result = runner.invoke(app, ["feedback", "list"])
+    assert result.exit_code == 0
+    assert "fb-001" in result.stdout
+    assert "アップストリームタイムアウトの疑い。" in result.stdout
+
+
+def test_feedback_accept_writes_knowledge_and_marks_accepted(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _seed_feedback(tmp_path)
+    result = runner.invoke(app, ["feedback", "accept", "fb-001"])
+    assert result.exit_code == 0
+    knowledge = tmp_path / "knowledge" / "incidents" / "fb-001.md"
+    assert knowledge.exists()
+    content = knowledge.read_text(encoding="utf-8")
+    assert "アップストリームタイムアウトの疑い。" in content
+    from ops_ai_agent.adapters.feedback_store import JsonFeedbackStore
+
+    record = JsonFeedbackStore(tmp_path / "data" / "feedback.json").get("fb-001")
+    assert record.status == "accepted"
+
+
+def test_feedback_accept_unknown_id_fails(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = runner.invoke(app, ["feedback", "accept", "missing"])
+    assert result.exit_code != 0
+    assert "見つかりません" in result.output
+
+
+def test_index_command_runs_incremental_update(tmp_path, monkeypatch):
+    from ops_ai_agent.adapters.json_vector_store import JsonVectorStore
+    from tests.fakes import FakeEmbedder
+
+    knowledge = tmp_path / "knowledge"
+    (knowledge / "incidents").mkdir(parents=True)
+    (knowledge / "incidents" / "a.md").write_text(
+        "---\nid: INC-001\ntitle: t\nservice: s\n---\n\n本文です。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli_module, "create_voyage_embedder", lambda settings: FakeEmbedder()
+    )
+    result = runner.invoke(app, ["index"])
+    assert result.exit_code == 0
+    assert JsonVectorStore(tmp_path / "data" / "index.json").load()
+
+
+def test_index_command_full_flag_rebuilds(tmp_path, monkeypatch):
+    from tests.fakes import FakeEmbedder
+
+    knowledge = tmp_path / "knowledge"
+    (knowledge / "incidents").mkdir(parents=True)
+    (knowledge / "incidents" / "a.md").write_text(
+        "---\nid: INC-001\ntitle: t\nservice: s\n---\n\n本文です。\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli_module, "create_voyage_embedder", lambda settings: FakeEmbedder()
+    )
+    result = runner.invoke(app, ["index", "--full"])
+    assert result.exit_code == 0
+
+
+class _RecordingTickets:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    def create_ticket(self, title: str, description: str, *, severity: str) -> str:
+        self.calls.append((title, description, severity))
+        return "https://jira.example.com/browse/OPS-1"
+
+
+def test_triage_creates_ticket_above_threshold(tmp_path, monkeypatch):
+    _patch_factories(monkeypatch, tmp_path)
+    tickets = _RecordingTickets()
+    monkeypatch.setattr(cli_module, "create_jira_tickets", lambda settings: tickets)
+    monkeypatch.setenv("OPS_AGENT_TICKET_SEVERITY_THRESHOLD", "high")
+    log = _write_log(tmp_path)
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0
+    assert len(tickets.calls) == 1
+    assert tickets.calls[0][2] == "high"
+    # 再実行（同じsummary）では重複起票しない
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0
+    assert len(tickets.calls) == 1
+
+
+def test_triage_skips_ticket_below_threshold(tmp_path, monkeypatch):
+    _patch_factories(monkeypatch, tmp_path)
+    tickets = _RecordingTickets()
+    monkeypatch.setattr(cli_module, "create_jira_tickets", lambda settings: tickets)
+    # 既定しきい値は critical（フィクスチャの high は起票対象外）
+    log = _write_log(tmp_path)
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0
+    assert tickets.calls == []
+
+
+def test_triage_without_jira_config_creates_nothing(tmp_path, monkeypatch):
+    _patch_factories(monkeypatch, tmp_path)
+    log = _write_log(tmp_path)
+    result = runner.invoke(app, ["triage", "--log", str(log)])
+    assert result.exit_code == 0

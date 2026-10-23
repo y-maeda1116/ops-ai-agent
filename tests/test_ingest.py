@@ -117,3 +117,17 @@ def test_read_log_source_stdin(monkeypatch):
         "sys.stdin", io.StringIO("2026-10-03T12:00:00Z INFO [api] ok\n")
     )
     assert "INFO" in read_log_source("-")
+
+
+def test_parse_log_text_masks_secrets_in_raw_and_message():
+    from ops_ai_agent.domain.masking import mask_sensitive  # noqa: F401
+
+    line = (
+        '{"ts":"2026-10-03T12:00:00Z","level":"error","service":"api",'
+        '"message":"auth failed with key AKIAIOSFODNN7EXAMPLE"}'
+    )
+    result = parse_log_text(line)
+    record = result.records[0]
+    assert "AKIAIOSFODNN7EXAMPLE" not in record.raw
+    assert "AKIAIOSFODNN7EXAMPLE" not in record.message
+    assert "***MASKED***" in record.message

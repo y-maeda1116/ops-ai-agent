@@ -26,6 +26,32 @@ class Settings(BaseSettings):
     knowledge_dir: Path = Path("knowledge")
     data_dir: Path = Path("data")
     max_iterations: int = Field(default=12, validation_alias="OPS_AGENT_MAX_ITERATIONS")
+    max_retries: int = Field(default=2, validation_alias="OPS_AGENT_MAX_RETRIES")
+    webhook_secret: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_WEBHOOK_SECRET"
+    )
+    webhook_port: int = Field(default=8080, validation_alias="OPS_AGENT_WEBHOOK_PORT")
+    webhook_rate_limit: int = Field(
+        default=30, validation_alias="OPS_AGENT_WEBHOOK_RATE_LIMIT"
+    )
+    prometheus_url: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_PROMETHEUS_URL"
+    )
+    ticket_severity_threshold: str = Field(
+        default="critical", validation_alias="OPS_AGENT_TICKET_SEVERITY_THRESHOLD"
+    )
+    jira_base_url: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_JIRA_BASE_URL"
+    )
+    jira_email: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_JIRA_EMAIL"
+    )
+    jira_api_token: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_JIRA_API_TOKEN"
+    )
+    jira_project_key: str | None = Field(
+        default=None, validation_alias="OPS_AGENT_JIRA_PROJECT_KEY"
+    )
     slack_channel: str = Field(
         default="#ops-alerts", validation_alias="OPS_AGENT_SLACK_CHANNEL"
     )

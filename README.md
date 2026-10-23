@@ -13,6 +13,19 @@ LLM & RAG-Powered Incident Triage & Log Analysis Bot — 生成AI（RAG/Agent）
 - **RAG**: 過去インシデント・runbook（Markdown）を Voyage AI 埋め込みで検索
 - **通知**: CLI（Markdown）/ Slack（Block Kit、重要度でカラーを分岐）
 - **Slack Bot**: メンション/DMでログを受信しスレッドに切り分け結果を返信
+- **Webhook**: Alertmanager / PagerDuty / Grafana のアラートを HTTP 受信し自動切り分け
+  （HMAC-SHA256 署名検証・レート制限付き）
+- **フィードバックループ**: Slack レポートの 👍/👎 ボタンで評価を収集し、
+  `ops-agent feedback accept` で過去インシデントとしてナレッジに反映
+- **メトリクス照会**: `OPS_AGENT_PROMETHEUS_URL` 設定時、エージェントが PromQL
+  即時クエリで定量根拠を収集
+- **自動起票**: 重要度しきい値以上のレポートをJiraへ重複なしで自動起票
+- **Eval**: golden set（`eval/golden/*.json`）に対する triage 精度を数値化し、
+  プロンプト・モデル変更時の回帰を検出
+- **コスト可視化**: LLM usage（入出力トークン・概算コスト）を `data/usage.jsonl`
+  に記録し、`ops-agent usage` で集計
+- **実行履歴（監査ログ）**: triage レポートを `data/history.jsonl` に追記保存し、
+  `ops-agent history` で後から参照（Slack通知とは thread_ts で紐付け）
 
 ## クイックスタート
 
@@ -24,6 +37,13 @@ uv run ops-agent triage --log examples/logs/api-gateway-5xx.jsonl
 uv run ops-agent triage --alert "ALERT: 5xx急増" --notify slack
 uv run ops-agent ask "5xx急増の過去事例は？"
 uv run ops-agent bot                            # Slack Socket Mode Bot
+uv run ops-agent webhook                        # アラートWebhook受付サーバ
+uv run ops-agent eval --cases eval/golden   # golden set 回帰テスト（要APIキー）
+uv run ops-agent usage                      # トークン/コスト集計を表示
+uv run ops-agent history list               # triage実行履歴を新しい順に表示
+uv run ops-agent feedback list                  # 承認待ちフィードバック一覧
+uv run ops-agent feedback accept <id>           # 承認してナレッジへ反映
+uv run ops-agent index                          # 反映後にインデックス再構築
 ```
 
 ### 環境変数
@@ -38,8 +58,19 @@ uv run ops-agent bot                            # Slack Socket Mode Bot
 | `SLACK_APP_TOKEN` | ※1 | Socket Mode トークン（`xapp-`、bot で必須） |
 | `OPS_AGENT_SLACK_CHANNEL` | - | 通知先チャンネル（既定: `#ops-alerts`） |
 | `OPS_AGENT_MAX_ITERATIONS` | - | エージェント反復上限（既定: 12） |
+| `OPS_AGENT_MAX_RETRIES` | - | API 一時的エラー（429/5xx/タイムアウト）のリトライ上限（既定: 2） |
+| `OPS_AGENT_WEBHOOK_SECRET` | ※2 | Webhook 署名検証用シークレット（`X-Signature: sha256=<HMAC>`） |
+| `OPS_AGENT_WEBHOOK_PORT` | - | Webhook サーバのポート（既定: 8080） |
+| `OPS_AGENT_WEBHOOK_RATE_LIMIT` | - | Webhook の毎分リクエスト上限（既定: 30） |
+| `OPS_AGENT_PROMETHEUS_URL` | - | Prometheus のベースURL。設定すると triage エージェントが `get_metrics` ツール（PromQL 即時クエリ）を使えるようになる |
+| `OPS_AGENT_TICKET_SEVERITY_THRESHOLD` | critical | 自動起票する重要度しきい値（low/medium/high/critical） |
+| `OPS_AGENT_JIRA_BASE_URL` | - | Jira ベースURL（EMAIL/API_TOKEN/PROJECT_KEY と併せて設定で自動起票を有効化） |
+| `OPS_AGENT_JIRA_EMAIL` | - | Jira 認証メールアドレス |
+| `OPS_AGENT_JIRA_API_TOKEN` | - | Jira API トークン |
+| `OPS_AGENT_JIRA_PROJECT_KEY` | - | 起票先プロジェクトキー |
 
 ※1: Slack機能を使う場合のみ。
+※2: 未設定の場合は署名検証なしで動作（本番では設定を推奨）。
 
 ## アーキテクチャ
 
@@ -74,5 +105,7 @@ FakeLlm / FakeEmbedder により、実APIなしでエージェントループ全
 - APIトークンは環境変数のみ（`.env` はgitignore。上表の変数を `.env` に記載）
 - ログ/アラート/ナレッジ本文はランダムデリミタでラップし、プロンプト
   インジェクション対策（内容の指示には従わない）
+- 取り込み段とアラート本文に対し、AWSキー/JWT/Slackトークン/秘密鍵/
+  メールアドレス等の機密情報を `***MASKED***` へマスキング（LLM送信前に除去）
 - Socket Mode（公開エンドポイントなし）、メンション/DMのみ応答
 - CI: ruff(S含む) / mypy strict / pytest 80% / pip-audit / bandit / Trivy secret-scan
