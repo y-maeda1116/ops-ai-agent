@@ -17,8 +17,13 @@ SEVERITY_COLOR = {
 _ESCALATION = {True: "要", False: "不要"}
 
 
-def report_to_blocks(report: TriageReport) -> list[dict[str, object]]:
-    """TriageReport を Block Kit blocks へ変換する。"""
+def report_to_blocks(
+    report: TriageReport, *, feedback_value: str | None = None
+) -> list[dict[str, object]]:
+    """TriageReport を Block Kit blocks へ変換する。
+
+    feedback_value を渡すとフィードバックボタンを末尾に付与する。
+    """
     blocks: list[dict[str, object]] = [
         {
             "type": "header",
@@ -80,7 +85,30 @@ def report_to_blocks(report: TriageReport) -> list[dict[str, object]]:
             ],
         }
     )
+    if feedback_value is not None:
+        blocks.append(_feedback_actions_block(feedback_value))
     return blocks
+
+
+def _feedback_actions_block(value: str) -> dict[str, object]:
+    """フィードバック収集用のボタンブロック。"""
+    return {
+        "type": "actions",
+        "elements": [
+            {
+                "type": "button",
+                "action_id": "feedback_helpful",
+                "text": {"type": "plain_text", "text": "👍 役に立った"},
+                "value": value,
+            },
+            {
+                "type": "button",
+                "action_id": "feedback_not_helpful",
+                "text": {"type": "plain_text", "text": "👎 役に立たなかった"},
+                "value": value,
+            },
+        ],
+    }
 
 
 class SlackNotifier:

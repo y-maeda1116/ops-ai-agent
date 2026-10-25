@@ -3,9 +3,12 @@
 from types import SimpleNamespace
 from typing import Any, cast
 
+import anthropic
+import httpx
 import pytest
 
 from ops_ai_agent.adapters.claude_llm import ClaudeLlmAdapter, create_claude_llm
+from ops_ai_agent.config import Settings
 from ops_ai_agent.ports.llm import (
     Message,
     TextBlock,
@@ -25,7 +28,10 @@ class StubAnthropic:
 
     def _create(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
-        return self._responses.pop(0)
+        item = self._responses.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        return item
 
 
 def _sdk_text_response(text: str, stop_reason: str = "end_turn") -> Any:
@@ -130,6 +136,81 @@ def test_message_conversion_roundtrip_shapes():
         "content": "r",
         "is_error": True,
     }
+
+
+def _sdk_status_error(cls: type[Exception], status: int) -> Exception:
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    return cls("err", response=httpx.Response(status, request=request), body=None)
+
+
+def _retries_adapter(stub: StubAnthropic) -> ClaudeLlmAdapter:
+    return ClaudeLlmAdapter(cast(Any, stub), sleeper=lambda _s: None)
+
+
+def test_retries_on_rate_limit_then_succeeds():
+    stub = StubAnthropic(
+        [_sdk_status_error(anthropic.RateLimitError, 429)] * 2
+        + [_sdk_text_response("ok")]
+    )
+    response = _retries_adapter(stub).complete(
+        system="s", messages=[Message(role="user", content=[TextBlock(text="q")])]
+    )
+    assert response.content[0].text == "ok"
+    assert len(stub.calls) == 3
+
+
+def test_retries_on_timeout_and_server_error():
+    timeout = anthropic.APITimeoutError(
+        httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    )
+    stub = StubAnthropic(
+        [
+            timeout,
+            _sdk_status_error(anthropic.InternalServerError, 500),
+            _sdk_text_response("ok"),
+        ]
+    )
+    response = _retries_adapter(stub).complete(
+        system="s", messages=[Message(role="user", content=[TextBlock(text="q")])]
+    )
+    assert response.content[0].text == "ok"
+    assert len(stub.calls) == 3
+
+
+def test_gives_up_after_max_retries():
+    stub = StubAnthropic([_sdk_status_error(anthropic.RateLimitError, 429)] * 5)
+    with pytest.raises(anthropic.RateLimitError):
+        _retries_adapter(stub).complete(
+            system="s", messages=[Message(role="user", content=[TextBlock(text="q")])]
+        )
+    assert len(stub.calls) == 3  # 初回 + リトライ2回（既定値）
+
+
+def test_does_not_retry_on_bad_request():
+    stub = StubAnthropic([_sdk_status_error(anthropic.BadRequestError, 400)])
+    with pytest.raises(anthropic.BadRequestError):
+        _retries_adapter(stub).complete(
+            system="s", messages=[Message(role="user", content=[TextBlock(text="q")])]
+        )
+    assert len(stub.calls) == 1
+
+
+def test_create_claude_llm_disables_sdk_retry_and_wires_max_retries(monkeypatch):
+    captured: dict[str, Any] = {}
+
+    def fake_client(**kwargs: Any) -> StubAnthropic:
+        captured.update(kwargs)
+        return StubAnthropic([_sdk_text_response("ok")])
+
+    monkeypatch.setattr(anthropic, "Anthropic", fake_client)
+    settings = Settings(
+        _env_file=None,
+        anthropic_api_key="k",
+        max_retries=5,  # type: ignore[call-arg]
+    )
+    adapter = create_claude_llm(settings)
+    assert captured["max_retries"] == 0  # SDK内蔵リトライは無効化
+    assert adapter._max_retries == 5  # 設定値がアダプタへ反映される
 
 
 def test_create_claude_llm_requires_key(tmp_path, monkeypatch):

@@ -359,3 +359,46 @@ def test_triage_with_shared_service_is_safe_for_concurrent_calls():
     # 各スレッドの analyze_log 結果は自分のログの統計を反映する
     assert "service-alpha" in captured[threads[0].ident][0]
     assert "service-beta" in captured[threads[1].ident][0]
+
+
+def test_triage_masks_alert_text_sent_to_llm():
+    fake_llm = FakeLlm([_end_turn()])
+    service = TriageService(fake_llm, StubRetriever())
+    alert = "ALERT: token leaked: xoxb-fixture-not-a-real-token"
+    service.triage(_records(), alert_text=alert)
+    first_user = fake_llm.requests[0]["messages"][0]
+    text = next(b.text for b in first_user.content if isinstance(b, TextBlock))
+    assert "xoxb-fixture-not-a-real-token" not in text
+    assert "***MASKED***" in text
+
+
+class StubMetrics:
+    def query(self, expression: str) -> str:
+        return f"result for {expression}"
+
+
+def test_get_metrics_tool_returns_wrapped_result():
+    fake_llm = FakeLlm(
+        [
+            _tool_use("get_metrics", {"query": 'up{service="api"}'}),
+            _end_turn(),
+        ]
+    )
+    service = TriageService(fake_llm, StubRetriever(), metrics=StubMetrics())
+    service.triage(_records())
+    tool_result = fake_llm.requests[1]["messages"][-1].content[0]
+    assert isinstance(tool_result, ToolResultBlock)
+    assert "<untrusted-metrics-" in tool_result.content
+    assert 'result for up{service="api"}' in tool_result.content
+
+
+def test_tools_include_get_metrics_only_with_metrics_port():
+    fake_llm = FakeLlm([_end_turn()])
+    TriageService(fake_llm, StubRetriever(), metrics=StubMetrics()).triage(_records())
+    tool_names = [t.name for t in fake_llm.requests[0]["tools"]]  # type: ignore[index]
+    assert "get_metrics" in tool_names
+
+    plain_llm = FakeLlm([_end_turn()])
+    TriageService(plain_llm, StubRetriever()).triage(_records())
+    plain_names = [t.name for t in plain_llm.requests[0]["tools"]]  # type: ignore[index]
+    assert "get_metrics" not in plain_names

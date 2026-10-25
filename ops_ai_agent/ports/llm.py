@@ -37,9 +37,17 @@ class Message(BaseModel):
     content: list[Block]
 
 
+class Usage(BaseModel):
+    """1回の補完で消費したトークン数。"""
+
+    input_tokens: int
+    output_tokens: int
+
+
 class LlmResponse(BaseModel):
     stop_reason: str  # "end_turn" | "tool_use" | "max_tokens" | "refusal" ...
     content: list[TextBlock | ToolUseBlock]
+    usage: Usage | None = None
 
 
 @runtime_checkable

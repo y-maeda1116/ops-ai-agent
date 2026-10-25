@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 from ops_ai_agent.domain.analysis import filter_records, format_summary, summarize
+from ops_ai_agent.domain.masking import mask_sensitive
 from ops_ai_agent.domain.models import LogRecord, TriageReport
 from ops_ai_agent.ports.llm import (
     LlmPort,
@@ -17,6 +18,7 @@ from ops_ai_agent.ports.llm import (
     ToolSpec,
     ToolUseBlock,
 )
+from ops_ai_agent.ports.metrics import MetricsPort
 from ops_ai_agent.ports.retriever import KnowledgeRetrieverPort
 
 MAX_ITERATIONS = 12
@@ -86,6 +88,20 @@ _TOOLS = [
         },
     ),
 ]
+
+_METRICS_TOOL = ToolSpec(
+    name="get_metrics",
+    description=(
+        "Prometheus に PromQL 即時クエリを発行し、現在のメトリクス値を取得する。"
+        "エラー率やレイテンシなど、障害の定量根拠を集めるのに使う。"
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "PromQL 式"}},
+        "required": ["query"],
+        "additionalProperties": False,
+    },
+)
 
 _REPORT_SCHEMA: dict[str, object] = {
     "type": "object",
@@ -165,10 +181,15 @@ class TriageService:
         retriever: KnowledgeRetrieverPort,
         *,
         max_iterations: int = MAX_ITERATIONS,
+        metrics: MetricsPort | None = None,
     ) -> None:
         self._llm = llm
         self._retriever = retriever
         self._max_iterations = max_iterations
+        self._metrics = metrics
+        self._tools: list[ToolSpec] = (
+            [*_TOOLS, _METRICS_TOOL] if metrics is not None else list(_TOOLS)
+        )
 
     def triage(
         self, records: list[LogRecord], *, alert_text: str | None = None
@@ -191,7 +212,7 @@ class TriageService:
             response = self._llm.complete(
                 system=SYSTEM_PROMPT,
                 messages=messages,
-                tools=_TOOLS,
+                tools=self._tools,
                 output_schema=_REPORT_SCHEMA,
             )
             tool_uses = [b for b in response.content if isinstance(b, ToolUseBlock)]
@@ -319,8 +340,17 @@ class TriageService:
             return self._search_knowledge(tool_input)
         if name == "get_runbook":
             return self._get_runbook(tool_input)
+        if name == "get_metrics":
+            return self._get_metrics(tool_input)
         msg = f"未知のツール: {name}"
         raise ValueError(msg)
+
+    def _get_metrics(self, tool_input: dict[str, object]) -> str:
+        if self._metrics is None:
+            msg = "get_metrics: メトリクス照会先が設定されていません"
+            raise ValueError(msg)
+        query = str(tool_input["query"])
+        return _wrap("untrusted-metrics", self._metrics.query(query))
 
     def _analyze_log(
         self, tool_input: dict[str, object], records: list[LogRecord]
@@ -386,7 +416,9 @@ class TriageService:
     ) -> str:
         parts: list[str] = []
         if alert_text:
-            parts.append("アラート（データ）:\n" + _wrap("untrusted-alert", alert_text))
+            # アラート本文（Bot/CLI/Webhook 由来の信頼できないテキスト）もマスクする
+            alert_body = _wrap("untrusted-alert", mask_sensitive(alert_text))
+            parts.append("アラート（データ）:\n" + alert_body)
         parts.append("ログ統計ヘッダー:\n" + format_summary(summarize(records)))
         log_lines = [record.raw for record in records]
         if len(log_lines) > _MAX_LOG_LINES:
