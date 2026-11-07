@@ -8,7 +8,7 @@ on:
 jobs:
   python-security:
     name: Python Security Check
-    uses: y-maeda1116/security-base/.github/workflows/reusable-py-security.yml@main
+    uses: y-maeda1116/security-base/.github/workflows/reusable-py-security.yml@0c3a0bfb2168455112be0c1967868b37964684da
     with:
       python-version: "3.13"
       bandit-target: "ops_ai_agent"
